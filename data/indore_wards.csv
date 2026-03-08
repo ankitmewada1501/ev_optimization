@@ -1,0 +1,86 @@
+ward_no,ward_name,lgd_code,population_2011,zone
+1,Vijay Nagar,100001,42500,North
+2,Scheme No 78,100002,38200,North
+3,Bhanwarkuan,100003,35600,North
+4,Sudama Nagar,100004,29800,North
+5,Annapurna,100005,31200,South
+6,Tejaji Nagar,100006,27500,South
+7,Khajrana,100007,33400,East
+8,Musakhedi,100008,28900,East
+9,Palda,100009,26300,East
+10,Limbodi,100010,24100,East
+11,Sanwer Road,100011,31500,West
+12,Lasudia Mori,100012,29700,West
+13,Nanda Nagar,100013,35800,West
+14,Rajendra Nagar,100014,32100,West
+15,Banganga,100015,28400,Central
+16,Chandan Nagar,100016,37200,Central
+17,Sukhdev Nagar,100017,26800,Central
+18,Malharganj,100018,41300,Central
+19,Gopur Square,100019,38700,Central
+20,Bhagirathpura,100020,44500,Central
+21,Juni Indore,100021,52300,Central
+22,Siyaganj,100022,48200,Central
+23,Cloth Market,100023,39600,Central
+24,Rajmo,100024,31800,Central
+25,Chhatripura,100025,28900,Central
+26,Kanadia Road,100026,33700,North
+27,Bicholi Hapsi,100027,25400,North
+28,Kanadiya,100028,22800,North
+29,Rau,100029,41200,North
+30,Limbodiya Lal,100030,19500,North
+31,Aerodrome,100031,36900,South
+32,Mahalaxmi Nagar,100032,29300,South
+33,Dwarkapuri,100033,31700,South
+34,Bicholi Mardana,100034,24600,South
+35,Sai Nagar,100035,28100,South
+36,Indrapuri,100036,22300,South
+37,Rajiv Gandhi Square,100037,34500,South
+38,Bhanwar Kuwa,100038,38200,South
+39,Saket Square,100039,41700,South
+40,Navlakha,100040,35900,South
+41,Gita Bhawan,100041,38400,West
+42,Manorama Ganj,100042,33600,West
+43,Anand Bazar,100043,30200,West
+44,Bilawali,100044,27800,West
+45,Bhamori,100045,21400,West
+46,Scheme 54,100046,35700,West
+47,MG Road,100047,46800,Central
+48,Palasia,100048,42300,Central
+49,Chhota Bangarda,100049,31900,East
+50,Bada Bangarda,100050,28700,East
+51,Raoji Bazar,100051,39500,Central
+52,Rajwada,100052,44200,Central
+53,Sitlamata Bazar,100053,36800,Central
+54,Sarafa,100054,41100,Central
+55,Sahakari Nagar,100055,29600,West
+56,Tilak Nagar,100056,33800,West
+57,Lohamandi,100057,38100,Central
+58,Geeta Nagar,100058,27400,South
+59,Bhavani Nagar,100059,31600,South
+60,Shankar Nagar,100060,25900,North
+61,Kushwah Nagar,100061,22700,North
+62,Pandrinath,100062,37300,Central
+63,Gokuldas Colony,100063,29500,West
+64,Nema Nagar,100064,24800,East
+65,Murai Mohalla,100065,32200,Central
+66,Sukha Nullah,100066,28500,East
+67,Eklavya Nagar,100067,21900,South
+68,Azad Nagar,100068,35100,West
+69,Shivaji Nagar,100069,38900,West
+70,Bholaram Ustad Marg,100070,31200,Central
+71,Jawahar Marg,100071,43700,Central
+72,Sapna Sangeeta,100072,36400,South
+73,Shreeram Colony,100073,28100,North
+74,Pipliya Kumar,100074,23600,North
+75,Pardeshipura,100075,34900,West
+76,Ranipura,100076,39200,Central
+77,Khati Mohalla,100077,31500,Central
+78,Chhawni,100078,27800,West
+79,Tukoganj,100079,48600,Central
+80,Race Course Road,100080,41300,South
+81,Dhar Road,100081,29700,West
+82,Dewas Naka,100082,33500,North
+83,Bombay Hospital,100083,35800,Central
+84,Bhaurasla,100084,22100,East
+85,Nayapura,100085,26400,Central

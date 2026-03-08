@@ -1,0 +1,31 @@
+loc_id,name,type,ward_no,lat,lon,size,chargers,opening_cost,grid_upgrade_cost,zone
+1,Rajwada Multilevel Parking,parking,22,22.7196,75.8577,large,8,800000,300000,Central
+2,Sarafa Bazaar Parking,parking,23,22.7183,75.8565,medium,4,500000,200000,Central
+3,Palasia Square Parking,parking,47,22.7264,75.8816,large,8,800000,300000,Central
+4,Vijay Nagar Parking Complex,parking,52,22.7521,75.8934,large,8,800000,250000,North
+5,Scheme 54 Parking,parking,61,22.7612,75.8801,medium,4,500000,180000,North
+6,Treasure Island Mall,mall,47,22.7268,75.8823,large,12,1200000,500000,Central
+7,C21 Mall Parking,mall,52,22.7489,75.8912,large,12,1200000,500000,North
+8,LIG Square Parking,parking,31,22.7048,75.8732,medium,4,500000,200000,Central
+9,Rau Road Fuel Station,fuel_station,71,22.6812,75.8421,large,10,1000000,400000,South
+10,Bypass Road Fuel Station,fuel_station,79,22.6934,75.9012,large,10,1000000,400000,South
+11,AB Road Fuel Station,fuel_station,48,22.7312,75.8867,medium,6,700000,300000,Central
+12,Ring Road Fuel Station,fuel_station,64,22.7634,75.8623,medium,6,700000,300000,North
+13,Airport Road Fuel Station,fuel_station,77,22.7234,75.8234,large,10,1000000,450000,West
+14,Annapurna Restaurant Hub,restaurant,29,22.6989,75.8678,medium,4,450000,150000,Central
+15,Geeta Bhawan Restaurant,restaurant,35,22.7123,75.8712,small,2,300000,100000,Central
+16,Vijay Nagar Food Court,restaurant,52,22.7498,75.8956,medium,4,450000,150000,North
+17,MR-10 Food Hub,restaurant,65,22.7723,75.8734,medium,4,450000,180000,North
+18,Bhawarkuan Restaurant Row,restaurant,41,22.7023,75.8834,small,2,300000,100000,Central
+19,Palasia Hotel Parking,parking,47,22.7256,75.8798,medium,4,500000,200000,Central
+20,Scheme 78 Parking,parking,58,22.7589,75.9123,medium,4,500000,180000,North
+21,Lasudia Mori Fuel Station,fuel_station,73,22.7123,75.9234,medium,6,700000,280000,East
+22,Nipania Fuel Station,fuel_station,67,22.7412,75.9312,large,10,1000000,400000,East
+23,Rau Petrol Pump,fuel_station,72,22.6823,75.8389,medium,6,700000,280000,South
+24,Super Corridor Parking,parking,82,22.7834,75.9456,large,8,800000,350000,East
+25,IIM Road Parking,parking,80,22.7956,75.8823,medium,4,500000,200000,North
+26,Bombay Hospital Parking,parking,33,22.7145,75.8812,medium,4,500000,220000,Central
+27,Brilliant Convention Parking,parking,55,22.7678,75.8856,large,8,800000,300000,North
+28,Phoenix Citadel Mall,mall,53,22.7512,75.9067,large,12,1200000,500000,North
+29,DB City Parking,mall,49,22.7289,75.8901,large,12,1200000,500000,Central
+30,Nehru Park Parking,parking,26,22.7067,75.8623,small,2,300000,120000,Central

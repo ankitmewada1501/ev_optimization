@@ -1,0 +1,122 @@
+# EV Charging Station Optimization Framework - Configuration
+
+# Paths
+data:
+  wards_csv: "data/indore_wards.csv"
+  candidate_locations_csv: "data/candidate_locations.csv"   # NEW: venue-typed candidates
+  future_demand_csv: "outputs/future_demand.csv"
+  optimal_nsga2_csv: "outputs/optimal_solutions_nsga2.csv"
+  optimal_mopso_csv: "outputs/optimal_solutions_mopso.csv"
+
+# Population Growth & EV Adoption
+forecasting:
+  base_year: 2011
+  forecast_years: [2025, 2030, 2035]
+  cagr_rate: 0.018            # 1.8% annual population growth
+  ev_adoption:
+    K: 1.0                    # max adoption fraction
+    a: 0.3                    # growth rate steepness
+    t0: 2030                  # inflection year
+  ev_per_1000_people: 50      # base EV density in 2025
+
+# Stochastic Demand
+monte_carlo:
+  n_scenarios: 100
+  demand_noise_fraction: 0.15  # sigma = 0.15 * mu
+
+# Queue Model (M/M/c) - Realistic Time-of-Use Operating Pattern
+# Total: 24h = 3h peak + 13h normal + 8h idle
+queue:
+  avg_charging_time_min: 30     # minutes per session (default; may vary by venue)
+  wait_time_threshold_min: 20   # max acceptable mean waiting time (minutes)
+  # chargers_per_station is now PER-LOCATION from candidate_locations.csv
+  time_of_use:
+    peak_hours: 3               # rush hours (8-10 AM + 5-6 PM)
+    normal_hours: 13            # regular daytime (10 AM - 5 PM + 6-10 PM)
+    idle_hours: 8               # late night / early morning (10 PM - 6 AM)
+    peak_demand_multiplier: 2.8
+    normal_demand_multiplier: 1.0
+    idle_demand_multiplier: 0.15
+
+# Time-of-Use Pricing (per charging session)
+pricing:
+  peak_rate_per_session: 210      # INR — peak premium (+40%)
+  normal_rate_per_session: 150    # INR — base rate
+  idle_rate_per_session: 112      # INR — off-peak discount (-25%, incentivise load shifting)
+  # Pricing applies proportionally to demand in each period
+
+# Vehicle type capacity (kW per charger slot)
+vehicle_types:
+  two_wheeler_kw: 3.3           # AC slow charger for 2W
+  four_wheeler_kw: 7.4          # AC Level-2 charger for 4W
+  two_wheeler_fraction: 0.45    # 45% of Indore EV fleet are 2-wheelers
+  four_wheeler_fraction: 0.55   # 55% are 4-wheelers
+
+# Optimization — dynamic n_stations from candidate_locations.csv
+optimization:
+  nsga2:
+    population_size: 80
+    n_generations: 500
+    crossover_prob: 0.9
+    mutation_prob: 0.08
+    convergence_window: 40
+    convergence_tol: 0.0005
+  mopso:
+    n_particles: 80
+    n_iterations: 500
+    inertia: 0.4
+    c1: 1.5
+    c2: 1.5
+    convergence_window: 40
+    convergence_tol: 0.0005
+  # n_candidate_stations is now dynamic (= len(candidate_locations.csv))
+
+# Economics
+economics:
+  # installation_cost_per_station: now per-location from CSV (opening_cost + grid_upgrade_cost)
+  operating_cost_per_station_per_year: 80000  # INR/year (maintenance, staff)
+  grid_capacity_kw: 500                       # per zone capacity limit
+  peak_hours_fraction: 0.125                  # 3/24
+
+# Coverage — zone-adjusted radii (Fix 2: realistic density-based coverage)
+# Central Indore (dense urban): 1.5 km service radius
+# Outer zones (sparse/suburban): 2.5 km service radius
+# Reference: MoRTH guidelines adapted for Indore road connectivity
+coverage:
+  radius_km: 2.0              # default fallback radius
+  zone_radii:
+    Central: 1.5              # dense urban core (Rajwada, Sarafa)
+    North: 2.5                # industrial + peri-urban
+    South: 2.5                # residential outskirts
+    East: 2.5                 # Aerodrome, Rau outskirts
+    West: 2.5                 # Palasia, AB Road corridor
+
+# Dynamic Candidate Generation (demand-based multi-station per ward)
+dynamic_candidates:
+  enable: true
+  high_demand_percentile: 75       # wards above this get up to 3 stations
+  medium_demand_percentile: 50     # wards above this get up to 2 stations
+  max_stations_high_demand: 3
+  max_stations_medium_demand: 2
+  default_chargers_extra: 4        # extra candidates default to 4 chargers
+  extra_opening_cost: 500000       # INR for auto-generated parking slots
+  extra_grid_upgrade_cost: 200000  # INR for auto-generated grid upgrade
+
+# Sensitivity Analysis
+sensitivity:
+  ev_growth_rates: [0.1, 0.2, 0.3, 0.4, 0.5]
+  electricity_costs: [5.0, 7.0, 9.0, 11.0, 13.0]
+  installation_cost_factors: [0.7, 0.85, 1.0, 1.15, 1.3]
+  service_rates_min: [20, 25, 30, 40, 50]
+
+# Output files
+outputs:
+  pareto_png: "outputs/pareto_comparison.png"
+  nsga2_pareto_png: "outputs/nsga2_individual_pareto.png"
+  mopso_pareto_png: "outputs/mopso_individual_pareto.png"
+  queue_dist_png: "outputs/queue_waiting_time_distribution.png"
+  profit_dist_png: "outputs/uncertainty_profit_distribution.png"
+  scalability_png: "outputs/scalability_runtime_plot.png"
+  nsga2_convergence_png: "outputs/nsga2_convergence.png"
+  mopso_convergence_png: "outputs/mopso_convergence.png"
+  html_report: "outputs/ev_report.html"
