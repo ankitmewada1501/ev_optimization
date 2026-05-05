@@ -4,6 +4,7 @@ sensitivity analysis, and scalability benchmarks.
 Updated to accept optional candidate_df for venue-aware problem construction.
 """
 import time
+import timeit
 import numpy as np
 import pandas as pd
 from modules.optimization_layer import EVStationProblem, run_nsga2, run_mopso
@@ -71,6 +72,16 @@ def compute_all_indicators(nsga2_obj: np.ndarray, mopso_obj: np.ndarray) -> dict
         }
         print(f"  [{name}] HV={indicators[name]['Hypervolume']:.4f}, "
               f"GD={indicators[name]['GD']:.4f}, Spread={indicators[name]['Spread']:.4f}")
+
+    # Also expose flat keys expected by the visualization layer
+    # (e.g. indicators.get("nsga2_hv", 0))
+    prefix_map = {"NSGA-II": "nsga2", "MOPSO": "mopso"}
+    for name, prefix in prefix_map.items():
+        vals = indicators[name]
+        indicators[f"{prefix}_hv"]     = vals["Hypervolume"]
+        indicators[f"{prefix}_gd"]     = vals["GD"]
+        indicators[f"{prefix}_spread"] = vals["Spread"]
+
     return indicators
 
 
@@ -109,6 +120,7 @@ def sensitivity_analysis(cfg: dict, future_df: pd.DataFrame,
     results = {}
 
     # 1. EV growth rate
+    # f3 returned as -ROI (dimensionless). Convert to real ₹/yr profit = ROI × capex.
     print("[Sensitivity] Varying EV growth rates...")
     ev_profits, ev_wq, ev_n_stations, ev_coverages = [], [], [], []
     for rate in sa["ev_growth_rates"]:
@@ -121,7 +133,8 @@ def sensitivity_analysis(cfg: dict, future_df: pd.DataFrame,
         prob = _make_problem(cfg, temp_df, temp_mc, cdf)
         x = np.zeros(prob.n_stations); x[:prob.n_stations // 2] = 1
         f = prob.evaluate(x)
-        ev_profits.append(-f[2]); ev_wq.append(f[3])
+        profit_inr = (-f[2]) * f[0]   # ROI × capex = annual profit (INR)
+        ev_profits.append(profit_inr); ev_wq.append(f[3])
         ev_n_stations.append(int(x.sum())); ev_coverages.append(-f[1])
     results["ev_growth_rate"] = {"x": sa["ev_growth_rates"], "profit": ev_profits,
                                   "wq_min": ev_wq, "n_stations": ev_n_stations,
@@ -140,7 +153,7 @@ def sensitivity_analysis(cfg: dict, future_df: pd.DataFrame,
         prob = _make_problem(t_cfg, future_df, mc_scenarios, candidate_df)
         x = np.zeros(prob.n_stations); x[:prob.n_stations // 2] = 1
         f = prob.evaluate(x)
-        el_profits.append(-f[2]); el_wq.append(f[3])
+        el_profits.append((-f[2]) * f[0]); el_wq.append(f[3])
     results["electricity_cost"] = {"x": sa["electricity_costs"],
                                     "profit": el_profits, "wq_min": el_wq}
 
@@ -156,7 +169,7 @@ def sensitivity_analysis(cfg: dict, future_df: pd.DataFrame,
         prob = _make_problem(cfg, future_df, mc_scenarios, cdf)
         x = np.zeros(prob.n_stations); x[:prob.n_stations // 2] = 1
         f = prob.evaluate(x)
-        ic_profits.append(-f[2]); ic_n.append(int(x.sum()))
+        ic_profits.append((-f[2]) * f[0]); ic_n.append(int(x.sum()))
     results["installation_cost"] = {"x": sa["installation_cost_factors"],
                                      "profit": ic_profits, "n_stations": ic_n}
 
@@ -169,7 +182,7 @@ def sensitivity_analysis(cfg: dict, future_df: pd.DataFrame,
         prob = _make_problem(t_cfg, future_df, mc_scenarios, candidate_df)
         x = np.zeros(prob.n_stations); x[:prob.n_stations // 2] = 1
         f = prob.evaluate(x)
-        sr_wq.append(f[3]); sr_profits.append(-f[2])
+        sr_wq.append(f[3]); sr_profits.append((-f[2]) * f[0])
     results["service_rate"] = {"x": sa["service_rates_min"],
                                 "wq_min": sr_wq, "profit": sr_profits}
     return results
@@ -184,7 +197,9 @@ def scalability_benchmark(cfg: dict, future_df: pd.DataFrame,
                            candidate_df=None) -> dict:
     sizes = [5, 10, 15, 20]
     nsga2_times, mopso_times = [], []
-    print("[Scalability] Running benchmarks...")
+    nsga2_stds,  mopso_stds  = [], []
+    n_repeats = 5   # Bug #4: use repeated timing to get stable/monotonic estimates
+    print("[Scalability] Running benchmarks (5 repeats each for stable timing)...")
     for sz in sizes:
         cdf = candidate_df.head(min(sz, len(candidate_df))).reset_index(drop=True) \
               if candidate_df is not None else None
@@ -194,7 +209,31 @@ def scalability_benchmark(cfg: dict, future_df: pd.DataFrame,
                  "n_candidate_stations": sz}
         t_cfg = {**cfg, "optimization": t_opt}
         prob = _make_problem(t_cfg, future_df, mc_scenarios, cdf)
-        t0 = time.time(); run_nsga2(prob, t_cfg); nsga2_times.append(time.time() - t0)
-        t0 = time.time(); run_mopso(prob, t_cfg); mopso_times.append(time.time() - t0)
-        print(f"  Size={sz}: NSGA-II={nsga2_times[-1]:.2f}s, MOPSO={mopso_times[-1]:.2f}s")
-    return {"sizes": sizes, "nsga2_times": nsga2_times, "mopso_times": mopso_times}
+
+        # Warm-up run (discarded) to avoid JIT / import overhead affecting timing
+        run_nsga2(prob, t_cfg)
+        run_mopso(prob, t_cfg)
+
+        # Repeated timing — use median to suppress OS scheduling noise
+        ns2_reps = timeit.repeat(lambda: run_nsga2(prob, t_cfg), repeat=n_repeats, number=1)
+        mo_reps  = timeit.repeat(lambda: run_mopso(prob, t_cfg),  repeat=n_repeats, number=1)
+
+        import numpy as _np
+        ns2_med = float(_np.median(ns2_reps))
+        mo_med  = float(_np.median(mo_reps))
+        ns2_std = float(_np.std(ns2_reps))
+        mo_std  = float(_np.std(mo_reps))
+
+        nsga2_times.append(ns2_med)
+        mopso_times.append(mo_med)
+        nsga2_stds.append(ns2_std)
+        mopso_stds.append(mo_std)
+        print(f"  Size={sz}: NSGA-II={ns2_med:.3f}s \u00b1{ns2_std:.3f}s, "
+              f"MOPSO={mo_med:.3f}s \u00b1{mo_std:.3f}s")
+    return {
+        "sizes":        sizes,
+        "nsga2_times":  nsga2_times,
+        "mopso_times":  mopso_times,
+        "nsga2_stds":   nsga2_stds,
+        "mopso_stds":   mopso_stds,
+    }

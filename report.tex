@@ -1,0 +1,411 @@
+\documentclass[12pt,phd,times]{pkmthesis}
+\usepackage{amsmath,epsfig,graphicx,setspace,url,float}
+\usepackage{pstricks,colortab,pifont}
+\usepackage{lscape,multicol,multirow,longtable,subfigure}
+\usepackage{cite, bm}                           % Due to this hyberref will not work for references (PKM on 07/07/08)
+\usepackage[english]{babel}
+\usepackage[small,bf]{caption}              % Added on 26/08/08
+%\usepackage{slashbox} 
+\usepackage{csquotes}  
+\usepackage{threeparttable}
+\usepackage{tikz}
+%\usepackage{adjustbox}                    % Added on 24/10/08 (Senthil)
+\setlength{\textfloatsep}{1cm}      
+\usepackage{makecell}
+\usepackage{graphicx}
+\usepackage{array}
+\graphicspath{ {./images/} }
+% Spacing b/w  float and text (PKM 01/11/08)
+%..........................................................................................................................................
+\normalem                                   % Added on 01/07/08 to avoid underline in the references
+\setlength{\abovecaptionskip}{8pt}          % Added on 08/07/08
+\setlength{\belowcaptionskip}{8pt}          % Added on 08/07/08
+%..........................................................................................................................................
+\usepackage{hyperref}
+\usepackage{extra_functions}
+%\input{pagesetup_pkm_twoside.tex}           % Modified on 06/07/08, 10/07/08, 15/07/08
+%\input{pagesetup_pkm_singleside.tex}       % For Single Sided Document 
+\input{pagesetup_pkm_middleside.tex}       % Middle alignment 
+\raggedbottom                               % o6/08/08  (Remove Unnecessary space b/w paragraphs)
+%******************************************************************************************************************************************
+
+\begin {document}
+\setcounter{page}{1} \pagenumbering{roman}  % 03/07/08
+\doublespacing                              % or use \baselineskip 12pt (12, 18 and 24)
+%*************************************************** FRONT PAGES**********************************************
+%\thispagestyle{empty}
+%\pdfbookmark{Title}{Title}
+%\include{FrontPages/title_page}
+%\thispagestyle{empty}
+%\clearpage
+
+\thispagestyle{empty}
+\pdfbookmark{Title}{Title}
+\include{FrontPages/title_page}
+\thispagestyle{empty}
+
+\clearpage
+\thispagestyle{empty}
+\pdfbookmark{Dedication}{Dedication}
+%\include{FrontPages/Dedication}
+% \mbox{}
+% \thispagestyle{empty}
+% \newpage
+% \thispagestyle{empty}
+
+
+\clearpage
+\thispagestyle{empty}
+\pdfbookmark{Certificate}{Certificate}
+\include{FrontPages/Certificate}
+% \mbox{}
+% \thispagestyle{empty}
+% \thispagestyle{empty}
+% \clearpage
+
+
+
+\thispagestyle{empty}
+\pdfbookmark{Acknowledgement}{Acknowledgement}
+\include{FrontPages/Acknowledgement}
+
+
+
+\thispagestyle{empty}
+\pdfbookmark{Abstract}{Abstract}
+\include{FrontPages/Abstract}
+% \thispagestyle{empty}
+% \clearpage
+
+% \thispagestyle{empty}
+
+
+% \clearpage
+% \thispagestyle{empty}
+% \pdfbookmark{Candidate's Declaration}{Candidate's Declaration}
+% \include{FrontPages/candidateDeclaration}
+% \mbox{}
+% \thispagestyle{empty}
+% \newpage
+% \thispagestyle{empty}
+%\pdfbookmark{Abstract}{Abstract}
+%\renewcommand{\baselinestretch}{1.1}
+%\include{FrontPages/Abstract2}
+% {\renewcommand{\baselinestretch}{1.5}
+% {%\small\normalsize
+% \begin{center}
+% 	{\bf{Abstract}}
+% \end{center}
+% {{\noindent Image description generation is a problem of predicting an information rich description of input image. It is a very complex task that involves the field of Computer Vision along with Natual Language Processing. Previous researches have proposed the work on image captioning using three major methods namely, 1) template based method, 2) retrieval based method, and 3) encoder-decoder based method. Currently, encoder-decoder based architecture have gained popularity in this task as they not only have achieved good performance, but has the capability of generating descriptions like humans. 
+% \par In our study, we will propose a neural network based architecture which will have good performance and will be easier to train too. We will conduct experiments on various encoder and decoder architectures. A complete validation and experimental analysis of all the suggested models for encoder and decoder will be given in this study. The proposed architecture will be trained and tested on the Flickr30k dataset and MSCOCO dataset. Furthermore, the model will be deployed on the cloud and logic of generating the description for the blind person will be implemented on a device through a native mobile application.
+% }}}}	
+
+% \noindent \textbf{Keywords:} Image, Encoder-Decoder, Neural Network, CNN, RNN, LSTM, GRU, Caption, Image Description
+% \thispagestyle{empty}
+% \clearpage
+% \mbox{}
+% \thispagestyle{empty}
+% \newpage
+%..........................................................................................................................................
+% For the fancy chapters (Don't remove these lines- 03/07/08)
+\clearpage
+\thispagestyle{empty}
+\dominitoc
+\dominilof
+\dominilot
+\fancyhf{} \fancyhead[LE]{\bfseries\small{\leftmark}}
+\fancyhead[RO]{\bfseries\small{\rightmark}}
+\fancyfoot[CE,CO]{\bfseries\thepage}
+%..........................................................................................................................................
+%TABLE OF CONTENTS
+\renewcommand{\baselinestretch}{1}
+\pdfbookmark[0]{Index}{index}
+\pdfbookmark[1]{Contents}{toc}
+\fancyhead[LE]{\bfseries\small{Contents}}
+\fancyhead[RO]{\bfseries\small{Contents}}
+\tableofcontents
+\clearpage
+%.........................................................................................................................................
+ % LIST OF FIGURES
+\pdfbookmark[1]{List of Figures}{lof}
+\addstarredchapter{List of Figures}       % PKM 05/07/08 (For more options  refer minitoc.pdf on page 36)
+\fancyhead[LE]{\bfseries\small{List of Figures}}
+\fancyhead[RO]{\bfseries\small{List of Figures}}
+\listoffigures
+\clearpage
+%..........................................................................................................................................
+% LIST OF TABLES
+\pdfbookmark[1]{List of Tables}{lot}
+\addstarredchapter{List of Tables}         % or use \mtcaddchapter[List of Tables] [Please Refer minitoc.pdf]
+\fancyhead[LE]{\bfseries\small{List of Tables}}
+\fancyhead[RO]{\bfseries\small{List of Tables}}
+\listoftables
+\clearpage
+%..........................................................................................................................................
+% LIST OF ACRONYMS
+\fancyhead[LE]{\bfseries\small{List of Acronyms}}
+\fancyhead[RO]{\bfseries\small{List of Acronyms}}
+\pdfbookmark[1]{List of Acronyms}{loa}
+\addstarredchapter{List of Acronyms}
+\include{FrontPages/Acronyms}
+\clearpage
+%..........................................................................................................................................
+% LIST OF SYMBOLS
+% \fancyhead[LE]{\bfseries\small{List of Symbols}}
+% \fancyhead[RO]{\bfseries\small{List of Symbols}}
+% \pdfbookmark[1]{List of Symbols}{los}
+% \addstarredchapter{List of Symbols}
+%\include{FrontPages/Symbols}
+% \clearpage
+%..........................................................................................................................................
+\fancyhf{}
+\fancyhead[LE]{\bfseries\small{\leftmark}}
+\fancyhead[RO]{\bfseries\small{\rightmark}}
+\fancyfoot[CE,CO]{\bfseries\thepage}
+\setcounter{page}{1} \pagenumbering{arabic}
+\renewcommand{\labelenumi}{(\roman{enumi})}   % Added on 09/08/2008
+%*******************************************************************************************************************************************************************************************
+
+
+%************************************************ BEGIN CHAPTERS **********************************************
+%\fancychapter{Introduction}
+\chapter{Introduction}\\
+\vspace{-1cm}
+
+\noindent \rule{6.6in}{0.01in}
+\emph{\emph{
+This chapter introduces the motivation and background for developing a data-driven,
+multi-objective optimization framework for large-scale Electric Vehicle Charging Station
+(EVCS) planning in rapidly growing urban environments. Section~1.1 provides a general
+introduction to the research context, emphasizing the increasing importance of optimized
+EVCS networks for sustainable mobility in cities such as Indore. Section~1.2 outlines the
+technical background—covering EV adoption trends, spatial demand characteristics,
+grid constraints, and the rationale for integrating NSGA-II, Benders decomposition,
+CAGR-based demand forecasting, and queueing models in EVCS planning. Section~1.3
+highlights the practical and methodological motivations guiding the work, focusing on the
+need for scalable, data-driven approaches that balance cost, coverage, service quality,
+and profitability. Section~1.4 lists the primary objectives of the thesis, including optimal
+station placement, dynamic pricing optimization, and operational performance evaluation.
+Finally, Section~1.5 presents the overall layout of the report, summarizing the structure
+and interconnections of the subsequent chapters.
+}
+}
+
+\include{chapters/1/introduction_on_skin_segmentation}\label{chap:intro}
+
+\chapter{Literature Review}
+\vspace{-1cm}
+\noindent \rule{6.6in}{0.01in}
+\emph{\emph{
+Section~2.1 reviews twelve influential studies spanning EVCS siting,
+multi-objective evolutionary algorithms, M/M/$c$/K queueing models
+with Time-of-Use demand segmentation, stochastic demand forecasting,
+and formal NSGA-II vs.\ MOPSO comparative evaluation. Together,
+these works establish the theoretical and methodological foundation
+for the four-objective optimization framework proposed in this thesis.
+Section~2.2 identifies five key research gaps --- the absence of
+Indian city studies with real ward-level data, lack of integrated
+four-objective formulations, over-simplified queueing models applied
+post-hoc rather than embedded in the optimization loop, absence of
+formal algorithm comparison on binary EVCS placement problems, and
+use of raw profit as a financially degenerate objective --- that
+collectively motivate the proposed framework.
+Section~2.3 provides a structured comparative summary of the twelve
+reviewed studies, consolidating each study's methodology, key
+contribution, and limitation to offer a clear overview of existing
+approaches and the gaps addressed by this thesis.
+}}
+
+\include{chapters/2/ReviewOnSkinSegmentation}\label{chap:L_survey}
+%\clearpage
+% \mbox{}
+% \thispagestyle{empty}
+\newpage
+
+
+
+%\clearpage
+%\mbox{}
+%\thispagestyle{empty}
+%\newpage
+
+
+
+
+\chapter{Model Architecture}
+\vspace{-1cm}
+\noindent \rule{6.6in}{0.01in}
+\noindent \emph{
+This chapter presents the model architecture used in our EVCS optimization framework.
+Section~3.1 describes the baseline multi-objective structure, including demand modeling,
+cost functions, and grid constraints. Section~3.2 outlines the NSGA-II architecture used
+for site-selection optimization, and Section~3.3 explains the Benders decomposition module
+used for dynamic pricing. Section~3.4 summarizes the queueing-based evaluation layer
+that validates waiting times and utilization after optimization. Section~3.5 identifies the
+core components of the proposed framework and how they interact to produce scalable,
+city-level EVCS deployment plans.
+}
+\include{chapters/6/archi}\label{chap:problem_statement}
+
+\chapter{Methodology}
+\vspace{-1cm}
+\noindent \rule{6.6in}{0.01in}
+\noindent \emph{
+The methodology for this project is organized as a structured, multi-stage
+pipeline designed to ensure that data acquisition, demand forecasting,
+multi-objective optimization, and operational validation remain systematically
+integrated with the overarching goal of achieving optimal EVCS placement
+across Indore's 85~wards. Each stage builds upon the previous one ---
+starting from dataset acquisition and spatial zoning, followed by ward-level
+logistic demand forecasting and 100-scenario Monte~Carlo stochastic
+simulation, four-objective binary problem formulation, parallel optimization
+using NSGA-II and MOPSO with M/M/$c$/K queueing constraints embedded
+directly in the evaluation loop, and finally sensitivity analysis and
+scalability benchmarking to validate robustness and computational
+tractability. This structured pipeline ensures consistency, reproducibility,
+and rigour across all components of the EVCS planning framework.}
+
+\include{chapters/4/Proposed_method}\label{chap:problem_statement}
+
+
+
+% \chapter{Future Research}
+% \vspace{-1cm}
+% \noindent \rule{6.6in}{0.01in}
+% \emph{\emph{This chapter describes planned extensions and the roadmap for continuing the work presented in this thesis. Section 3.1 gives a complete dataset description and augmentation plans, detailing additional fields to include (temporal tags, gateway metadata, environmental covariates) and strategies for quality checks and anonymisation. Section 3.2 lays out proposed methodologies: advanced feature engineering, SF-conditioned models, and physics-informed hybrid approaches that combine path-loss priors with ML residual modelling. Section 3.3 describes the ML pipeline extensions: candidate models (Random Forest, SVR, MLP, ensemble stacking), hyperparameter search, uncertainty quantification (prediction intervals, conformal methods), and cross-city/domain adaptation experiments. Section 3.4 explains integration and validation steps for the ESP planning tool, including GUI features, predeployment simulations, and real-world field trials. Section 3.5 outlines evaluation and benchmarking plans (metrics, cross-validation protocols, robustness checks) and Section 3.6 presents a timeline and milestones for implementation, dataset acquisition, and publication targets.}}
+% \include{chapters/3/future_research_plan}\label{chap:future}
+% \include{chapters/7/Future_Direction_Methodogy}\label{chap:Future Direction}
+
+
+
+
+\chapter{Results and Discussions}
+\vspace{-1cm}
+\noindent \rule{6.6in}{0.01in}
+\noindent \emph{
+This chapter presents comprehensive experimental results for the proposed
+four-objective EVCS optimization framework, evaluated across both NSGA-II
+and MOPSO algorithms, multiple performance dimensions, and operational
+constraint scenarios. We begin by comparing the Pareto fronts of both
+algorithms, followed by formal quality evaluation using Hypervolume~(HV),
+Generational Distance~(GD), and Spread indicators. Detailed analysis of
+the recommended optimal solution is provided, covering station composition,
+spatial coverage, financial viability, and queue service performance.
+Additional analyses include queue waiting time distributions across the
+full Pareto front, HV convergence behaviour for both algorithms, sensitivity
+studies on EV growth rate, electricity tariff, installation cost, and
+charger service rate, and scalability benchmarks validating computational
+tractability. Each section provides quantitative metrics and interpretive
+discussion to highlight key insights, algorithmic trade-offs, and practical
+planning implications for Indore's EV charging infrastructure deployment.}
+
+\include{chapters/5/intermediate_results}\label{chap:intermediate_results}
+
+
+
+\chapter{Conclusion and Future Work}
+\vspace{-1cm}
+\noindent \rule{6.6in}{0.01in}
+\include{chapters/5/conclusions_futurescope}\label{chap:cons_fscope}
+
+
+% \chapter{Future Work}
+% \vspace{-1cm}
+% \noindent \rule{6.6in}{0.01in}
+% \include{chapters/6/conclusions_futurescope}\label{chap:cons_fscope}
+
+
+
+
+
+
+%\clearpage
+%\mbox{}
+%\thispagestyle{empty}
+%\newpage
+%\addtocounter{page}{-1}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+%\appendix
+%%%..........................................................................................................................................
+%\fancychapter{Appendix}\label{Sunil_Appendix}
+%\chapter{Appendix}\label{Sunil_Appendix}
+%  \include{Chapters/Appendix/Appendix}
+%\clearpage
+%%..........................................................................................................................................
+%\fancychapter{Cepstral Analysis}
+%\label{app:lpc}
+%\include{chapters/Appendix/CFA}
+%\clearpage
+%%..........................................................................................................................................
+%\fancychapter{Linear Prediction Coefficients Computation}
+%\label{app:sine}
+%\include{chapters/Appendix/Appendix_lpc_V2}
+%\clearpage
+%%..........................................................................................................................................
+%\fancychapter{Composite Objective Quality Measures}
+%\label{app:cqm}
+%\include{Chapters/Appendix/Appendix_cqm_V1}
+%\clearpage
+%%..........................................................................................................................................
+%\fancychapter{MFCC Feature Extraction}
+%\label{app:mfcc}
+%\include{Chapters/Appendix/Appendix_mfcc_V1}
+%\clearpage
+%%..........................................................................................................................................
+%\fancychapter{Gaussian Mixture Models}
+%\label{app:gmm}
+%\include{Chapters/Appendix/Appendix_gmm_V1}
+%\clearpage
+%..........................................................................................................................................
+%\doublespacing
+%\normalsize
+%\pdfbookmark{Publications}{Publications}
+%\fancyhead[LE]{\bfseries\small{List of Publications}}
+%\fancyhead[RO]{\bfseries\small{List of Publications}}
+%\pdfbookmark[1]{List of Publications}{los}
+%\addstarredchapter{List of Publications}
+%\include{FrontPages/publ}
+%\clearpage
+
+%% LIST OF SYMBOLS
+%\fancyhead[LE]{\bfseries\small{List of Symbols}}
+%\fancyhead[RO]{\bfseries\small{List of Symbols}}
+%\pdfbookmark[1]{List of Symbols}{los}
+%\addstarredchapter{List of Symbols}
+%\include{FrontPages/Symbols}
+%\clearpage
+%******************************************************************************************************************************************************************
+
+%**************************************************BIBLIOGRAPHY********************************************************
+\pagestyle{fancy}
+\fancyhead[LE]{\bfseries\small{Bibliography}}
+\fancyhead[RO]{\bfseries\small{Bibliography}}
+
+% \begin{document}
+\nocite{*}  % include all entries even if not cited
+\bibliographystyle{IEEEtran}
+\bibliography{chapters/Appendix/bio}
+
+\end{document}
+%\clearpage
+%**************************************************PUBLICATIONS****************************************************************************************************************
+
+
+
+\end{document}

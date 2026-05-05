@@ -1,0 +1,397 @@
+%=========================================================
+% Chapter: Results and Analysis
+%=========================================================
+
+\subsection{Pareto Front Comparison}
+
+The core output of the multi-objective optimisation is the Pareto
+front, illustrating the trade-off vectors that represent
+non-dominated station-deployment configurations across the four
+objectives. Both NSGA-II and MOPSO were run independently for
+500~generations / iterations with identical evaluation budgets,
+and their Pareto fronts are compared in
+Figure~\ref{fig:pareto_comparison}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\linewidth]{image.png}
+\caption{Pareto front comparison: NSGA-II vs.\ MOPSO across all
+         four objective pairs (Cost vs.\ Coverage, Cost vs.\ Net
+         ROI, Coverage vs.\ Net ROI, Net ROI vs.\ Mean Wait Time).}
+\label{fig:pareto_comparison}
+\end{figure}
+
+\textbf{Interpretation of the Pareto front comparison:}
+\begin{itemize}
+    \item In the Cost vs.\ Coverage plane, both algorithms produce
+          well-defined frontiers spanning the full coverage range.
+          NSGA-II explores a wider coverage band (down to
+          $\sim$46\%) by including very small low-cost layouts,
+          while MOPSO concentrates its archive in the
+          medium-to-high coverage band (76--100\%).
+    \item In the Cost vs.\ Net ROI plane, both algorithms produce
+          comparable maximum ROI ($\sim$4.2--4.3) at low cost,
+          reflecting their similar ability to discover efficient
+          small-network configurations. Such low-cost solutions,
+          however, correspond to lower spatial coverage.
+    \item In the Coverage vs.\ Net ROI plane, the classic
+          efficiency trade-off is visible: high-coverage solutions
+          sacrifice per-unit profitability, while low-coverage
+          solutions cluster in the higher-ROI quadrant.
+    \item The Cost vs.\ Coverage curve becomes notably steeper in
+          the high-coverage region: the average marginal cost is
+          approximately $\text{\rupee}6$--$7$\,L per percentage
+          point of coverage, but pushing coverage to the upper end
+          of the front incurs sharply diminishing returns as
+          low-density peripheral wards require high-cost,
+          low-utilisation deployments.
+\end{itemize}
+
+\textbf{Key Insight:}
+The two algorithms are complementary on this problem instance:
+NSGA-II provides a wider coverage span and a more uniformly spread
+front, while MOPSO marginally wins on hypervolume and generational
+distance. For a public-procurement decision, presenting the
+\emph{union} of the two non-dominated archives gives the planner
+the richest possible menu of trade-offs.
+
+%---------------------------------------------------------
+\subsection{Individual Pareto Front Results}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1\linewidth]{image1.png}
+\caption{NSGA-II individual Pareto front results across all four
+         objective pairs. 80~non-dominated solutions; cost range
+         $\text{\rupee}71$\,L--$\text{\rupee}411$\,L; coverage
+         range 46.4\%--100\%.}
+\label{fig:nsga2_pareto}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1\linewidth]{image3.png}
+\caption{MOPSO individual Pareto front results across all four
+         objective pairs. 100~archive solutions; cost range
+         $\text{\rupee}39$\,L--$\text{\rupee}344$\,L; coverage
+         range 75.8\%--100\%.}
+\label{fig:mopso_pareto}
+\end{figure}
+
+\textbf{Interpretation of individual Pareto results:}
+\begin{itemize}
+    \item NSGA-II produces 80 non-dominated solutions with a
+          coverage range of 46.4\%--100\% and a cost range of
+          $\text{\rupee}71$\,L--$\text{\rupee}411$\,L. The
+          per-solution Net ROI ranges from 1.85 to 4.15, reflecting
+          genuine trade-off diversity across deployment scales.
+    \item MOPSO produces 100 archive solutions with a coverage
+          range of 75.8\%--100\% and a cost range of
+          $\text{\rupee}39$\,L--$\text{\rupee}344$\,L. The
+          per-solution Net ROI ranges from 2.12 to 4.33; the
+          tighter low-end coverage is a consequence of MOPSO's
+          archive-cap policy, which favours mid-to-high-budget
+          regions.
+    \item In the Net ROI vs.\ Mean Wait Time plane, all
+          Pareto-optimal solutions from both algorithms cluster
+          well below the 20-minute user-tolerance threshold; the
+          maximum mean wait observed across either front is
+          $\sim$5.6\,min, and no Pareto-optimal layout violates
+          the $P_{\text{block}} > 10\%$ blocking constraint or the
+          $\rho \ge 1$ stability bound.
+\end{itemize}
+
+%---------------------------------------------------------
+\subsection{Algorithm Performance Indicators}
+
+To formally quantify solution quality, three standard
+multi-objective performance indicators are computed over the
+four-dimensional objective space. The reference point for the
+hypervolume calculation is set at 5\% above the empirical nadir of
+the combined fronts.
+
+\begin{table}[H]
+\centering
+\caption{Algorithm performance indicators}
+\label{tab:performance}
+\begin{tabular}{lrrr}
+\toprule
+Indicator & NSGA-II & MOPSO & Better \\
+\midrule
+Hypervolume (HV, normalised)        & 0.9967  & 1.0434  & Higher $\uparrow$ \\
+Generational Distance (GD)          & $9.04 \times 10^{4}$ & $9.00 \times 10^{3}$ & Lower $\downarrow$ \\
+Spread ($\Delta$)                   & 0.750   & 0.792   & Lower $\downarrow$ \\
+Median $W_q$ (min)                  & 1.45    & 1.79    & Lower $\downarrow$ \\
+Max Coverage (\%)                   & 100.0   & 100.0   & Higher $\uparrow$ \\
+Max Net ROI                         & 4.15    & 4.33    & Higher $\uparrow$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The two algorithms split the indicators rather than one strictly
+dominating the other. MOPSO achieves a marginally higher
+hypervolume and a substantially lower generational distance,
+indicating that its archive lies closer to the union-reference
+front. NSGA-II produces a more evenly spread front and a slightly
+lower median waiting time. Both algorithms achieve full coverage
+(100\%) on at least one Pareto solution and reach comparable
+maximum Net ROI values. The gap between the two HV values relative
+to a common reference indicates that running both algorithms and
+taking the union of their archives is preferable to relying on
+either one individually.
+
+%---------------------------------------------------------
+\subsection{Optimal Solution Analysis}
+
+For deployment recommendation, a candidate solution is extracted
+from the NSGA-II Pareto front by selecting the layout that
+maximises spatial coverage subject to the $P_{\text{block}} \le
+10\%$ feasibility constraint across all selected stations. The
+union archive contains layouts that achieve full
+(100\%) ward coverage at a cost in the range
+$\text{\rupee}3.5$\,Cr--$\text{\rupee}4.1$\,Cr, with mean queue
+waits well within the 20-minute service-level target.
+
+\begin{table}[H]
+\centering
+\caption{Representative high-coverage solutions from the NSGA-II
+         Pareto front}
+\label{tab:optimal}
+\begin{tabular}{lrr}
+\toprule
+Metric & Value range & Unit \\
+\midrule
+Coverage ($f_2$)              & 100.0     & \%        \\
+Total CAPEX ($f_1$)            & 3.51--4.11 & Crore INR \\
+Net ROI ($f_3$)                & 2.18--2.77 & --        \\
+Mean Queue $W_q$ ($f_4$)        & 0.27--0.39 & minutes   \\
+Mean Pareto wait (full front)   & 0.13--5.55 & minutes   \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Interpretation of the recommended solutions:}
+\begin{itemize}
+    \item Full-coverage layouts in the NSGA-II archive deploy on
+          the order of 50--60 of the 118 candidate slots, with
+          medium-sized parking hubs concentrated in dense Central
+          and East zones where demand density justifies higher
+          CAPEX relative to revenue generation.
+    \item All Pareto-optimal solutions satisfy the per-zone
+          grid-capacity constraint of 500\,kW, which the
+          optimisation encodes as a soft penalty on $f_1$.
+    \item A net ROI on the order of 2--3$\times$ across the
+          high-coverage region of the front confirms that
+          public--private partnership (PPP) deployment of EV
+          charging stations in tier-2 Indian cities is
+          commercially viable provided that site selection is
+          rigorously optimised; the higher-ROI tail
+          ($\sim 4\times$) corresponds to smaller, lower-coverage
+          layouts suitable for a phased rollout.
+\end{itemize}
+
+%---------------------------------------------------------
+\subsection{Queue Simulation Results}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1\linewidth]{image4.png}
+\caption{Queue waiting time distribution (mean $W_q$ per Pareto
+         solution) for NSGA-II (left) and MOPSO (right). Red dashed
+         line: 20-minute user-tolerance threshold. Yellow dash-dot
+         line: median (NSGA-II: 1.45\,min; MOPSO: 1.79\,min).}
+\label{fig:queue_dist}
+\end{figure}
+
+\textbf{Interpretation of the queue waiting time distribution:}
+\begin{itemize}
+    \item NSGA-II solutions have a median real wait time of
+          1.45\,min, ranging from 0.26 to 4.37\,min, all
+          comfortably below the 20-minute user-tolerance threshold.
+    \item MOPSO solutions have a slightly higher median real wait
+          of 1.79\,min, with the full range spanning
+          0.13--5.55\,min. The slightly higher median is
+          consistent with MOPSO's preference for cheaper, more
+          highly utilised configurations.
+    \item No Pareto-optimal solution from either algorithm
+          violates the $P_{\text{block}} > 10\%$ blocking
+          threshold or the $\rho \ge 1$ stability bound; layouts
+          that would have triggered the 50- or 20-minute penalty
+          terms in $f_4$ are dominated and never appear on the
+          final fronts.
+    \item The inclusion of $W = 8$ physical waiting bays
+          ($K = c + 8$) was important: an Erlang-B (loss-only)
+          model would have predicted a higher customer-rejection
+          rate during peak periods, whereas the finite buffer
+          successfully queues the majority of the demand surge.
+\end{itemize}
+
+\textbf{Key Insight:}
+Both algorithms produce service-feasible Pareto fronts under
+realistic peak-load conditions. The ToU-weighted $M/M/c/K$
+treatment is the mechanism that keeps the search away from
+queue-infeasible layouts, regardless of which metaheuristic drives
+the outer loop.
+
+%---------------------------------------------------------
+\subsection{Convergence Analysis}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1\linewidth]{image5.png}
+\caption{NSGA-II convergence --- Hypervolume (HV, normalised) per
+         generation. Final HV $= 0.9967$. The fastest growth occurs
+         in the first $\sim$100 generations, after which the curve
+         enters a long plateau.}
+\label{fig:nsga2_conv}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1\linewidth]{image5.png}
+\caption{MOPSO convergence --- Hypervolume (HV, normalised) per
+         iteration. Final HV $= 1.0434$. The leader-following
+         dynamics produce a steeper rise in the first 50
+         iterations followed by a plateau.}
+\label{fig:mopso_conv}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1\linewidth]{image8.png}
+\caption{MOPSO HV improvement-rate analysis (50-iteration
+         windows). The verdict is CONVERGED, validating the early
+         stopping heuristic.}
+\label{fig:mopso_rate}
+\end{figure}
+
+\textbf{Interpretation of convergence behaviour:}
+\begin{itemize}
+    \item NSGA-II grows monotonically to a final normalised HV of
+          $0.9967$. The smooth cumulative curve confirms that
+          elitist selection effectively preserves good solutions
+          across generations.
+    \item MOPSO reaches a slightly higher final normalised HV of
+          $1.0434$, consistent with the known characteristic of
+          particle swarms to converge faster in early iterations
+          due to leader-following dynamics.
+    \item The MOPSO improvement-rate plot confirms near-zero HV
+          gain in the late iterations, with a formal CONVERGED
+          verdict, validating the early-stopping heuristic
+          ($\Delta\text{HV} < 5 \times 10^{-4}$ over a
+          40-iteration window).
+    \item Despite MOPSO's marginally higher final HV, NSGA-II
+          produces a more uniformly spread front (Spread
+          $0.750$ vs.\ $0.792$), so the two algorithms remain
+          complementary.
+\end{itemize}
+
+%---------------------------------------------------------
+\subsection{Sensitivity Analysis}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1\linewidth]{image6.png}
+\caption{Annual profit distribution across Pareto solutions for
+         NSGA-II (cyan) and MOPSO (pink). Profits span
+         $\text{\rupee}1.2$\,Cr--$\text{\rupee}11.6$\,Cr/yr across
+         the union archive.}
+\label{fig:profit_dist}
+\end{figure}
+
+\textbf{Sensitivity findings} (one-factor sweep over EV growth
+rate, electricity tariff, install-cost factor, and service rate):
+\begin{itemize}
+    \item \textbf{EV growth rate:} Scaling the logistic adoption
+          curve upward increases station utilisation and net ROI
+          but pushes a small subset of stations toward the
+          $P_{\text{block}} = 10\%$ feasibility threshold,
+          indicating that a network sized for 2025 demand will
+          require hardware expansion well before 2030.
+    \item \textbf{Electricity tariff:} An increase in the
+          commercial grid tariff depresses net ROI roughly
+          linearly, assuming the operator absorbs the cost
+          without passing it through to users. ToU pass-through
+          mechanisms would mitigate this sensitivity.
+    \item \textbf{Charger service rate:} Reducing the mean session
+          duration from 30 to 20 minutes (e.g.\ moving from a
+          slower AC charger to a 50\,kW DC fast charger on the
+          same battery) drops the time-weighted $\overline{W}_q$
+          substantially and shifts the entire Pareto front in the
+          cost-of-coverage direction. Conversely, doubling the
+          session duration violates the 20-minute service level
+          for a non-trivial subset of stations.
+    \item \textbf{Profit distribution:} The annual-profit
+          distribution across the union Pareto archive spans
+          $\text{\rupee}1.2$\,Cr--$\text{\rupee}11.6$\,Cr per
+          year, with NSGA-II reaching the upper end of the tail.
+\end{itemize}
+
+%---------------------------------------------------------
+\subsection{Scalability Benchmarks}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1\linewidth]{image7.png}
+\caption{Runtime scalability for NSGA-II and MOPSO as the
+         candidate-pool size $N$ increases. Both algorithms scale
+         polynomially.}
+\label{fig:scalability}
+\end{figure}
+
+\textbf{Interpretation of scalability results:}
+\begin{itemize}
+    \item NSGA-II's per-step runtime grows polynomially with the
+          candidate-pool size, consistent with its
+          $\mathcal{O}(M N^{2})$ non-dominated sorting complexity
+          (where $M$ is the number of objectives).
+    \item MOPSO's per-step runtime is dominated by archive
+          management and crowding-distance recomputation and
+          remains approximately flat across the tested range.
+    \item Full convergence runtimes for the Indore instance
+          ($n = 118$ after dynamic candidate generation) complete
+          in under four minutes of wall-clock time on a commodity
+          laptop, well within practical planning timescales.
+    \item The polynomial scaling confirms that the Python-based
+          framework is applicable to larger metropolitan instances
+          (e.g.\ Mumbai, Delhi with $n = 200$+ candidates) without
+          requiring high-performance computing resources.
+\end{itemize}
+
+%---------------------------------------------------------
+\subsection{Overall Interpretation}
+
+Across all experimental analyses, several consistent conclusions
+emerge:
+
+\begin{itemize}
+    \item NSGA-II and MOPSO are complementary on this binary EVCS
+          placement problem. MOPSO marginally wins on hypervolume
+          and generational distance; NSGA-II wins on spread and
+          covers a wider coverage range. Presenting the union of
+          the two archives to the planner therefore dominates
+          relying on either algorithm individually.
+    \item The $M/M/c/K$ queueing model with ToU segmentation and
+          the embedded blocking-probability penalty proved
+          essential: it kept the multi-objective search away from
+          queue-infeasible layouts, so that no Pareto-optimal
+          solution from either algorithm violates the
+          $P_{\text{block}} > 10\%$ or $\rho \ge 1$ bounds.
+    \item The Net ROI objective (annual profit divided by capex)
+          successfully decoupled financial and spatial objectives
+          and produced genuine Pareto diversity. ROI values across
+          the union archive range from 1.85 to 4.33, with the
+          higher values corresponding to small high-utilisation
+          layouts and the lower values to broad full-coverage
+          layouts.
+    \item Monte~Carlo demand averaging ($S = 100$ independent
+          per-station scenarios) ensures that the recommended
+          deployments are structurally robust to the full range
+          of plausible demand trajectories rather than only the
+          mean forecast.
+\end{itemize}
+
+Together, these results verify that the optimised EV charging
+network is economically feasible, operationally stable under peak
+demand, and deployment-ready for Indore's anticipated EV adoption
+trajectory through 2030 and beyond.

@@ -4,15 +4,17 @@ Optimization Layer - NSGA-II and MOPSO with venue-aware, dynamic station selecti
 Enhancements over previous version:
   - n_stations is dynamic: derived from len(candidate_locations)
   - f1 (Cost) = opening_cost + grid_upgrade_cost per selected location (not uniform)
-  - f3 (Revenue) uses per-period ToU pricing (peak/normal/idle rates, not multipliers)
-  - Queue uses per-location charger count from CSV
+  - f3 (ROI)  = (annual_revenue - annual_opex) / total_capex  [replaces raw profit]
+    ROI is orthogonal to coverage: equal-coverage solutions differ in cost/ROI.
+  - Queue uses per-location charger count from CSV + M/M/c/K with waiting bays
   - Per-station metrics (EVs served, Wq, profit share) stored for interactive report
 
 Objectives (all minimized internally):
   f1: minimize Total Capex (opening_cost + grid_upgrade_cost)
-  f2: maximize Coverage        (-> minimize -coverage)
-  f3: maximize Net Annual Profit (-> minimize -profit)
-  f4: minimize Weighted Mean Wq  (time-of-use queue model)
+  f2: maximize Coverage             (-> minimize -coverage)
+  f3: maximize Net ROI              (-> minimize -roi)  [was: profit, r=0.9986 w/ coverage]
+  f4: minimize Weighted Mean Wq_min (time-of-use M/M/c/K queue model)
+  Constraint: stations with P_block > MAX_BLOCKING (10%) receive a heavy penalty on f4.
 """
 import time
 import numpy as np
@@ -30,6 +32,10 @@ class EVStationProblem:
     Decision variable x: binary vector of length n_candidates.
     x[i] = 1 → select venue i from candidate_locations.
     """
+
+    # Indore centroid for wards with no candidate anchor.
+    _INDORE_LAT = 22.7196
+    _INDORE_LON = 75.8577
 
     def __init__(self, cfg: dict, future_df: pd.DataFrame,
                  mc_scenarios: np.ndarray, candidate_df: pd.DataFrame):
@@ -54,22 +60,16 @@ class EVStationProblem:
         self.base_demand       = candidate_df["daily_demand"].values.astype(float)
         self.location_type     = candidate_df["type"].values
 
-        # --- Per-location Monte Carlo scaling ---
-        # MC scenarios are ward-year level; scale proportionally to base demand
-        # Compute a noise multiplier per station from the 2025 ward MC scenarios
-        years = future_df["year"].values
-        mask_2025 = years == 2025
-        mc_2025 = mc_scenarios[:, mask_2025]  # (n_scenarios, n_wards_2025)
-        # Aggregate MC: mean across all wards → noise factor
-        mc_mean_2025 = mc_2025.mean(axis=1)   # (n_scenarios,)
-        global_mean = mc_mean_2025.mean()
-        if global_mean > 0:
-            noise_factors = mc_mean_2025 / global_mean  # (n_scenarios,)
-        else:
-            noise_factors = np.ones(len(mc_mean_2025))
-        # Per-station MC demand: base_demand * noise_factor for each scenario
-        # Shape: (n_stations, n_scenarios)
-        self.mc_station = np.outer(self.base_demand, noise_factors)
+        # --- Per-location Monte Carlo (INDEPENDENT noise per station) ---
+        # Previously used one scalar noise factor per scenario, giving perfectly
+        # correlated noise across stations (a fleet-wide shift, not true MC).
+        # Draw independent N(1, σ) multipliers per (station, scenario).
+        n_scen = mc_scenarios.shape[0] if mc_scenarios is not None else 100
+        noise_frac = cfg.get("monte_carlo", {}).get("demand_noise_fraction", 0.15)
+        rng = np.random.default_rng(seed=42)  # reproducible
+        mults = rng.normal(loc=1.0, scale=noise_frac,
+                           size=(self.n_stations, n_scen))
+        self.mc_station = np.clip(self.base_demand[:, None] * mults, 0, None)
 
         # --- ToU pricing ---
         pr = cfg.get("pricing", {})
@@ -109,6 +109,52 @@ class EVStationProblem:
         self.cov_radius = default_r          # kept for backward compat
         self.op_cost_yr = cfg["economics"]["operating_cost_per_station_per_year"]
 
+        # --- Improvement A: Radius-based coverage matrix (ward × station) ---
+        # Ward centroid = mean lat/lon of candidates in ward (fallback: Indore CBD).
+        ward_rows = (
+            future_df[future_df["year"] == 2025]
+            [["ward_no", "zone", "daily_demand_sessions"]]
+            .drop_duplicates("ward_no")
+            .reset_index(drop=True)
+        )
+        self.ward_nos       = ward_rows["ward_no"].values
+        self.ward_zones     = ward_rows["zone"].values
+        self.ward_demand    = ward_rows["daily_demand_sessions"].values.astype(float)
+        self.total_ward_demand = float(self.ward_demand.sum())
+
+        cand_lat = candidate_df["lat"].values.astype(float)
+        cand_lon = candidate_df["lon"].values.astype(float)
+        cand_ward = candidate_df["ward_no"].values.astype(int)
+
+        ward_centroid = {}
+        for w in self.ward_nos:
+            mask = cand_ward == w
+            if mask.any():
+                ward_centroid[w] = (float(cand_lat[mask].mean()),
+                                    float(cand_lon[mask].mean()))
+            else:
+                ward_centroid[w] = (self._INDORE_LAT, self._INDORE_LON)
+
+        # Planar approximation around Indore (~22.7°N): 1°lat≈111km, 1°lon≈102km.
+        KM_PER_DEG_LAT = 111.0
+        KM_PER_DEG_LON = 111.0 * np.cos(np.radians(self._INDORE_LAT))
+
+        ward_lat = np.array([ward_centroid[w][0] for w in self.ward_nos])
+        ward_lon = np.array([ward_centroid[w][1] for w in self.ward_nos])
+
+        dlat = (ward_lat[:, None] - cand_lat[None, :]) * KM_PER_DEG_LAT
+        dlon = (ward_lon[:, None] - cand_lon[None, :]) * KM_PER_DEG_LON
+        dist_km = np.sqrt(dlat * dlat + dlon * dlon)  # (n_wards, n_stations)
+
+        # Use the ward's zone radius for its row.
+        ward_radius = np.array([
+            zone_radii.get(str(z).strip(), default_r) for z in self.ward_zones
+        ])
+        self.cover_mat = (dist_km <= ward_radius[:, None])  # bool (n_wards, n_stations)
+
+        # --- Improvement C: Per-zone grid capacity (pre-build zone × station idx) ---
+        self.zones_list = list({z for z in self.station_zones})
+
     def _tou_revenue(self, daily_sessions: float) -> float:
         """Compute daily revenue using per-period pricing."""
         peak_sessions   = daily_sessions * self.peak_frac
@@ -118,37 +164,61 @@ class EVStationProblem:
                 + normal_sessions * self.normal_rate
                 + idle_sessions   * self.idle_rate)
 
+    MAX_BLOCKING = 0.10   # max acceptable blocking probability per station
+
     def evaluate(self, x: np.ndarray) -> tuple:
         """
         Evaluate 4 objectives for solution x (binary vector).
-        Returns (f1_cost, f2_neg_coverage, f3_neg_profit, f4_mean_wq)
+        Returns (f1_cost, f2_neg_coverage, f3_neg_roi, f4_mean_wq_min)
         Lower is better in all dimensions.
         """
         selected = np.where(x > 0.5)[0]
         n_sel = len(selected)
 
         if n_sel == 0:
+            self._last_raw_wq = 0.0
+            self._last_n_overloaded = 0
             return (0.0, 0.0, 0.0, 0.0)
 
         # --- f1: Total Capital Cost (opening + grid upgrade, varies by location) ---
         f1 = self.total_capex[selected].sum()
 
-        # --- f2: Coverage (fraction of total demand served) ---
-        total_demand = self.base_demand.sum()
-        covered      = self.base_demand[selected].sum()
-        coverage     = covered / total_demand if total_demand > 0 else 0.0
+        # --- Improvement C: Grid capacity penalty (per-zone kW ≤ grid_cap) ---
+        # 7.4 kW per AC charger × sum(selected chargers in zone) ≤ grid_cap.
+        grid_penalty = 0.0
+        for z, idx_list in self.zone_station_map.items():
+            sel_in_zone = [j for j in idx_list if x[j] > 0.5]
+            if not sel_in_zone:
+                continue
+            zone_kw = 7.4 * self.chargers[sel_in_zone].sum()
+            if zone_kw > self.grid_cap:
+                grid_penalty += (zone_kw - self.grid_cap) * 50000.0  # ₹/kW over
+        f1 += grid_penalty
+
+        # --- f2: Coverage (fraction of total ward demand within service radius) ---
+        # Uses pre-built ward×station boolean cover matrix — a ward is served iff
+        # any selected station sits within its zone-specific radius.
+        if self.total_ward_demand > 0:
+            covered_wards = self.cover_mat[:, selected].any(axis=1)
+            coverage = float((self.ward_demand * covered_wards).sum()
+                             / self.total_ward_demand)
+        else:
+            coverage = 0.0
         f2 = -coverage
 
-        # --- f3: Net Annual Profit (Monte Carlo expected revenue minus costs) ---
+        # --- f3: Net Annual ROI = (annual_profit) / total_capex  [Bug #2 fix] ---
+        # ROI is genuinely orthogonal to coverage: two solutions with identical
+        # coverage but different costs have different ROI, giving real trade-off.
         mc_sel = self.mc_station[selected, :]        # (n_sel, n_scenarios)
         mean_sessions_per_station = mc_sel.mean(axis=1)
         daily_rev = np.array([self._tou_revenue(s) for s in mean_sessions_per_station])
         annual_rev  = daily_rev.sum() * 365
         annual_opex = n_sel * self.op_cost_yr        # operating costs
-        profit = annual_rev - annual_opex - f1       # deduct capex upfront
-        f3 = -profit
+        annual_profit = annual_rev - annual_opex
+        roi = annual_profit / f1 if f1 > 0 else 0.0  # dimensionless ratio
+        f3 = -roi
 
-        # --- f4: Queue waiting time (time-of-use M/M/c, per-location chargers) ---
+        # --- f4: Mean queue waiting time in minutes (M/M/c/K with waiting bays) ---
         mean_demand = mc_sel.mean(axis=1)
         q_metrics = evaluate_fleet_queues(
             mean_demand,
@@ -157,24 +227,23 @@ class EVStationProblem:
             self.wait_threshold,
             tou_cfg=self.tou_cfg,
         )
-        # Graded Wq: replace inf with a large-but-finite penalty so optimizer
-        # can distinguish between "2 unstable" vs "10 unstable" stations.
-        raw_wqs = q_metrics["waiting_times"]
-        n_sel_total = len(raw_wqs)
-        capped_wqs = [min(w, 300.0) if np.isfinite(w) else 300.0 for w in raw_wqs]
-        f4 = float(np.mean(capped_wqs)) if capped_wqs else 0.0
-        # Light penalty per unstable station so optimizer avoids overloaded configs
-        f4 += q_metrics["n_unstable"] * 20.0
+        # Real Wq_min values from M/M/c/K model (no longer always 0)
+        wq_mins = q_metrics["waiting_times"]   # list of Wq_min per station
+        raw_wq = q_metrics["mean_Wq_min"]      # physical mean Wq, no penalties
+        f4 = raw_wq
 
-        # Fix 1: Infeasibility constraint — stations with ρ ≥ 1 are INFEASIBLE
-        # Count infeasible stations and add a heavy per-station penalty
-        # This makes the optimizer strongly prefer feasible (ρ < 1) configurations.
-        n_infeasible = sum(1 for w in raw_wqs if not np.isfinite(w))
-        if n_infeasible > 0:
-            # Hard penalty: each infeasible station adds 500 min (>> SLA of 20 min)
-            f4 += n_infeasible * 500.0
-        # Track max utilisation for reporting (f5 is not optimised, just recorded)
-        self._last_n_infeasible = n_infeasible
+        # Blocking probability constraint: P_block > MAX_BLOCKING → heavy penalty
+        # This raises f4 sharply for solutions where stations turn away >10% of EVs
+        p_blocks = q_metrics["p_blocks"]
+        n_overloaded = sum(1 for pb in p_blocks if pb > self.MAX_BLOCKING)
+        if n_overloaded > 0:
+            f4 += n_overloaded * 50.0   # 50-min penalty per overloaded station
+
+        # Extra penalty for truly unstable stations
+        f4 += q_metrics["n_unstable"] * 20.0
+        self._last_n_infeasible = q_metrics["n_unstable"]
+        self._last_raw_wq = raw_wq
+        self._last_n_overloaded = n_overloaded
 
         return (f1, f2, f3, f4)
 
@@ -577,16 +646,29 @@ def run_optimization_layer(cfg: dict, future_df: pd.DataFrame,
         n_cands = solutions.shape[1]
         cols = [f"station_{i}" for i in range(n_cands)]
         df = pd.DataFrame(solutions, columns=cols)
-        df["cost"]       = objectives[:, 0]
-        df["coverage"]   = -objectives[:, 1]
-        df["profit"]     = -objectives[:, 2]
-        df["mean_wq_min"]= objectives[:, 3]
-        df["algorithm"]  = algo
+        df["cost"]        = objectives[:, 0]
+        df["coverage"]    = -objectives[:, 1]
+        df["roi"]         = -objectives[:, 2]   # Net ROI (replaces profit)
+        df["mean_wq_min"] = objectives[:, 3]    # Real Wq in minutes from M/M/c/K
+        df["algorithm"]   = algo
         df.to_csv(path, index=False)
         print(f"  Saved {path}")
 
     _save(ns2_sol, ns2_obj, cfg["data"]["optimal_nsga2_csv"], "NSGA-II")
     _save(mo_sol,  mo_obj,  cfg["data"]["optimal_mopso_csv"], "MOPSO")
+
+    # Recompute raw (unpenalised) wait times for every Pareto solution so the
+    # visualization layer can show the physical Wq separately from the f4
+    # penalty used during search.
+    def _raw_wq(solutions):
+        out = np.zeros(len(solutions))
+        for i, x in enumerate(solutions):
+            problem.evaluate(x)
+            out[i] = getattr(problem, "_last_raw_wq", 0.0)
+        return out
+
+    ns2_raw_wq = _raw_wq(ns2_sol)
+    mo_raw_wq  = _raw_wq(mo_sol)
 
     # Compute per-station detail for best NSGA-II solution (highest coverage)
     best_idx_ns2 = int(np.argmax(-ns2_obj[:, 1]))
@@ -596,9 +678,11 @@ def run_optimization_layer(cfg: dict, future_df: pd.DataFrame,
     return {
         "problem": problem,
         "nsga2":   {"solutions": ns2_sol, "objectives": ns2_obj,
-                    "history": ns2_hist, "runtime": ns2_time},
+                    "history": ns2_hist, "runtime": ns2_time,
+                    "raw_wq_min": ns2_raw_wq},
         "mopso":   {"solutions": mo_sol,  "objectives": mo_obj,
-                    "history": mo_hist,  "runtime": mo_time},
+                    "history": mo_hist,  "runtime": mo_time,
+                    "raw_wq_min": mo_raw_wq},
         "best_solution_x":     best_sol_x,
         "station_details":     station_details,
     }

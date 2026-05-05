@@ -214,8 +214,26 @@ def generate_dynamic_candidates(
         extra_df = pd.DataFrame(new_rows)
         result = pd.concat([base_candidate_df, extra_df], ignore_index=True)
         auto_count = len(new_rows)
+
+        # Improvement B: Re-balance per-candidate demand so that, for every ward,
+        # sum(daily_demand across candidates in ward) == ward daily demand.
+        # Without this, base candidates keep their old share and the extras
+        # add on top — double-counting the ward's demand.
+        ward_demand_map = (
+            future_df[future_df["year"] == year]
+            .set_index("ward_no")["daily_demand_sessions"]
+        )
+        new_demand = []
+        ward_counts = result.groupby("ward_no")["loc_id"].transform("count")
+        for i, row in result.iterrows():
+            wd = float(ward_demand_map.get(row["ward_no"], 0.0))
+            n_here = int(ward_counts.iloc[i])
+            new_demand.append(round(wd / max(n_here, 1), 2))
+        result["daily_demand"] = new_demand
+
         print(f"[Data Layer] Dynamic candidates: added {auto_count} extra slots "
-              f"for high/medium demand wards → total {len(result)} candidates")
+              f"for high/medium demand wards → total {len(result)} candidates "
+              f"(per-ward demand re-balanced)")
         return result
     return base_candidate_df
 

@@ -1,0 +1,618 @@
+%=========================================
+% Section: Model Architecture
+% Drop-in fragment — paste into your report
+%
+% Preamble requirements (add once):
+%   \usepackage{tikz}
+%   \usetikzlibrary{arrows.meta,backgrounds,calc}
+%   \usepackage{amsmath,amssymb}
+%   \usepackage{booktabs,array}
+%=========================================
+
+\section{Model Architecture}
+\label{sec:model_arch}
+
+\noindent
+This section presents the complete architecture of the proposed four-objective
+Electric Vehicle Charging Station (EVCS) optimization framework designed for
+Indore city. The framework integrates five tightly coupled components in a
+unified, data-driven pipeline:
+
+\begin{itemize}
+    \item a logistic demand forecasting and Monte~Carlo stochastic simulation
+          module,
+    \item a four-objective binary optimisation layer using NSGA-II and MOPSO,
+    \item an M/M/$c$/K finite-capacity queueing evaluation layer with
+          Time-of-Use demand segmentation,
+    \item a blocking probability constraint enforcement mechanism, and
+    \item a sensitivity analysis and scalability benchmarking module.
+\end{itemize}
+
+\noindent
+These components interact through shared spatial datasets spanning the 85
+administrative wards of Indore, a heterogeneous pool of $30+$ candidate venues
+across five functional zones, and a logistic EV adoption curve anchored to
+CAGR-based ward-level demographic projections. The result is a scalable
+framework capable of generating Pareto-optimal EVCS deployment strategies
+evaluated against formal quality indicators: Hypervolume~(HV), Generational
+Distance~(GD), and Spread.
+
+\begin{center}
+\fbox{\parbox{0.93\linewidth}{
+\textbf{Data Layer}:\ \ Census 2011 $\rightarrow$ CAGR $\rightarrow$ Logistic
+Adoption Curve $\rightarrow$ Ward-level Daily Demand \\[4pt]
+\textbf{Stochastic Layer}:\ \ Monte~Carlo Simulation (100 scenarios,
+$v = 0.15$) \\[4pt]
+\textbf{Optimization Layer}:\ \ NSGA-II $\|$ MOPSO
+$\rightarrow$ Pareto-Optimal Station Subsets \\[4pt]
+\textbf{Evaluation Layer}:\ \ M/M/$c$/K Queue (ToU) + $P_{\text{block}}$
+Penalty + HV / GD / Spread \\[4pt]
+\textbf{Output}:\ \ Convergence Plots + Pareto Fronts + Sensitivity Analysis
++ Deployment Recommendation
+}}
+\end{center}
+
+
+
+%-----------------------------------------
+\section{Baseline Model}
+\label{sec:baseline_model}
+
+\noindent
+The baseline model provides a deterministic, single-period, cost--coverage
+formulation used as a reference benchmark for evaluating the multi-objective
+optimization results. It focuses exclusively on minimizing infrastructure cost
+while ensuring citywide spatial coverage under grid-capacity constraints.
+
+\subsection{Deterministic Cost--Coverage Formulation}
+
+Let
+\begin{align*}
+\mathcal{W} &:\ \text{set of demand wards},         & |\mathcal{W}| &= 85,\\
+\mathcal{J} &:\ \text{set of candidate sites},      & |\mathcal{J}| &= 30+,\\
+\mathcal{Z} &:\ \text{set of functional zones},     & |\mathcal{Z}| &= 5.
+\end{align*}
+
+\noindent
+\textbf{Decision variable:}
+\begin{equation}
+x_j =
+\begin{cases}
+1, & \text{if candidate station } j \text{ is selected for deployment,}\\
+0, & \text{otherwise,}
+\end{cases}
+\qquad j \in \mathcal{J}.
+\label{eq:decision}
+\end{equation}
+\textit{where:} $x_j \in \{0,1\}$ is the binary selection variable for
+candidate site $j$; $\mathcal{J}$ is the full set of candidate EVCS sites.
+
+\medskip\noindent
+The deterministic objective minimizes total capital expenditure:
+\begin{equation}
+\mathrm{CAPEX}
+= \sum_{j \in \mathcal{J}} x_j
+  \bigl(C_{\mathrm{base},j} + C_{\mathrm{grid},j}\bigr),
+\label{eq:capex}
+\end{equation}
+\textit{where:}
+\begin{itemize}
+  \item $C_{\mathrm{base},j}$ — venue-type-dependent base opening cost
+        (\rupee6.5--18.0~lakh per Table~3.2),
+  \item $C_{\mathrm{grid},j}$ — electrical grid upgrade cost at site $j$.
+\end{itemize}
+
+\medskip\noindent
+Coverage constraints ensure every ward is within the zone-adjusted
+service radius $R_z$:
+\begin{equation}
+\sum_{j \in \mathcal{J}} x_j \,\mathbb{1}
+\!\left(\mathrm{dist}_{wj} \leq R_z\right) \geq 1,
+\quad \forall\, w \in \mathcal{W},
+\label{eq:coverage}
+\end{equation}
+\textit{where:}
+\begin{itemize}
+  \item $\mathrm{dist}_{wj}$ — Euclidean distance from ward $w$ centroid
+        to site $j$ (km),
+  \item $\mathbb{1}(\cdot)$ — indicator function; equals 1 if
+        $\mathrm{dist}_{wj}\leq R_z$, else 0,
+  \item $R_z = 1.5$~km (Central Core) and $R_z = 2.5$~km (Outer zones),
+        per MoRTH~(2022).
+\end{itemize}
+
+\subsection{Baseline Architecture Interpretation}
+
+The deterministic model establishes a cost-minimizing reference network that
+covers all 85~wards. Although useful as a lower-bound benchmark on capital
+expenditure, this baseline does not capture:
+
+\begin{itemize}
+    \item stochastic EV demand variability and Monte~Carlo uncertainty,
+    \item multi-objective trade-offs among cost, coverage, ROI, and
+          service quality,
+    \item financial viability (net return on investment),
+    \item queue waiting times or blocking probability under peak demand,
+    \item the distinction between NSGA-II and MOPSO solution quality.
+\end{itemize}
+
+\noindent
+These limitations motivate the extended four-objective hybrid framework
+described in the following section.
+
+%-----------------------------------------
+\section{Proposed Four-Objective Optimization Framework}
+\label{sec:hybrid_framework}
+
+\noindent
+The complete framework jointly optimises station placement across four
+conflicting objectives, enforces queue service constraints, and evaluates
+robustness under stochastic demand. Its five interacting components are
+described below.
+
+%-----------------------------------------
+\subsection{Demand Forecasting and Monte~Carlo Simulation Layer}
+\label{sec:demand_layer}
+
+Ward-level EV charging demand is projected through a two-stage pipeline.
+First, the population of ward $w$ at forecast year $t$ is computed via a
+constant CAGR:
+\begin{equation}
+\mathrm{Pop}_w(t)
+= \mathrm{Pop}_w(2011)\times(1 + r)^{\,t-2011},
+\qquad r = 0.018.
+\label{eq:cagr}
+\end{equation}
+\textit{where:}
+\begin{itemize}
+  \item $\mathrm{Pop}_w(2011)$ — Census 2011 base population of ward $w$,
+  \item $r = 0.018$ — annual compound growth rate (CAGR),
+  \item $t$ — forecast year.
+\end{itemize}
+
+\medskip\noindent
+Second, the aggregate EV penetration rate follows a logistic S-curve:
+\begin{equation}
+E(t) = \frac{K}{1 + \exp\!\bigl(-a\,(t - t_0)\bigr)},
+\qquad K=1.0,\; a=0.3,\; t_0=2030.
+\label{eq:scurve}
+\end{equation}
+\textit{where:}
+\begin{itemize}
+  \item $K = 1.0$ — carrying capacity (maximum EV penetration level),
+  \item $a = 0.3$ — steepness of the adoption growth curve,
+  \item $t_0 = 2030$ — inflection year at which $E(t_0) = K/2$.
+\end{itemize}
+
+\medskip\noindent
+This yields a daily public charging demand per ward:
+\begin{equation}
+D_w(t)
+= \mathrm{Pop}_w(t)
+  \times \frac{V}{1000}
+  \times E(t)
+  \times F_{\mathrm{public}},
+\label{eq:demand}
+\end{equation}
+\textit{where:}
+\begin{itemize}
+  \item $V = 50$ — EV density (EVs per 1000 persons),
+  \item $E(t)$ — EV penetration rate from Eq.~\eqref{eq:scurve},
+  \item $F_{\mathrm{public}} = 0.20$ — fraction of EV owners relying on
+        public charging infrastructure.
+\end{itemize}
+
+\medskip\noindent
+To capture stochastic demand variability, 100~Monte~Carlo scenarios are
+generated per candidate station $j$:
+\begin{equation}
+D_{j,s}
+\sim \max\!\bigl(0,\;\mathcal{N}(\mu_j,\,(v\mu_j)^2)\bigr),
+\qquad s = 1,\dots,100,\quad v = 0.15.
+\label{eq:mc}
+\end{equation}
+\textit{where:}
+\begin{itemize}
+  \item $\mu_j$ — mean expected daily demand at station $j$,
+  \item $v = 0.15$ — coefficient of variation for demand noise,
+  \item $\mathcal{N}(\mu,\sigma^2)$ — normal distribution with mean $\mu$
+        and variance $\sigma^2$,
+  \item $\max(0,\cdot)$ — clamp enforcing non-negative demand values.
+\end{itemize}
+Financial and queueing objectives ($f_3$, $f_4$) are evaluated as averages
+across all 100~scenarios, ensuring robustness against demand edge cases.
+
+%-----------------------------------------
+\subsection{Four-Objective Problem Formulation}
+\label{sec:four_obj}
+
+The EVCS placement problem is formulated as a mixed-integer nonlinear
+programming (MINLP) model. Let $\mathbf{x} = [x_1,\dots,x_N]^{\top}$
+be the binary decision vector. Objectives for maximisation are negated so
+the solver uniformly minimises:
+\begin{equation}
+\mathbf{F}(\mathbf{x})
+= \bigl[f_1(\mathbf{x}),\;f_2(\mathbf{x}),\;f_3(\mathbf{x}),\;
+         f_4(\mathbf{x})\bigr]^{\!\top},
+\label{eq:objvec}
+\end{equation}
+\textit{where:}
+\begin{itemize}
+  \item $\mathbf{x} \in \{0,1\}^N$ — binary station-selection vector,
+  \item $N = |\mathcal{J}|$ — total number of candidate sites,
+  \item $f_1,\ldots,f_4$ — the four scalar objectives defined below
+        (Eqs.~\eqref{eq:f1}--\eqref{eq:f4}).
+\end{itemize}
+
+\subsubsection*{Objective $f_1$ — Total Capital Expenditure (Minimize)}
+\begin{equation}
+f_1(\mathbf{x})
+= \sum_{j \in \mathcal{J}} x_j
+  \bigl(C_{\mathrm{base},j} + C_{\mathrm{grid},j}\bigr).
+\label{eq:f1}
+\end{equation}
+\textit{where:} $C_{\mathrm{base},j}$ — base infrastructure cost at site
+$j$ (\rupee\ lakh); $C_{\mathrm{grid},j}$ — grid connection upgrade cost
+at site $j$ (\rupee\ lakh).
+
+\subsubsection*{Objective $f_2$ — Spatial Demand Coverage (Maximize)}
+\begin{equation}
+f_2(\mathbf{x})
+= -\frac{\displaystyle\sum_{w \in \mathcal{W}}
+    D_w \cdot \mathbb{1}\!\left(
+    \min_{j:\,x_j=1}\mathrm{dist}_{wj} \leq R_z\right)}
+  {\displaystyle\sum_{w \in \mathcal{W}} D_w}.
+\label{eq:f2}
+\end{equation}
+\textit{where:}
+\begin{itemize}
+  \item $D_w$ — daily demand of ward $w$ from Eq.~\eqref{eq:demand},
+  \item $\mathbb{1}(\cdot)$ — indicator: 1 if ward $w$ is within $R_z$
+        of at least one selected station, else 0,
+  \item $\mathrm{dist}_{wj}$ — distance from ward $w$ centroid to site
+        $j$ (km); negation converts maximisation to minimisation.
+\end{itemize}
+
+\subsubsection*{Objective $f_3$ — Net Return on Investment (Maximize)}
+\begin{equation}
+f_3(\mathbf{x})
+= -\frac{\text{Annual Revenue}(\mathbf{x})
+         - \text{Annual OpEx}(\mathbf{x})}
+        {f_1(\mathbf{x})}.
+\label{eq:f3}
+\end{equation}
+\textit{where:}
+\begin{itemize}
+  \item Annual Revenue$(\mathbf{x})$ — total yearly charging revenue
+        summed across selected stations (Monte~Carlo averaged),
+  \item Annual OpEx$(\mathbf{x})$ — yearly operating expenditure
+        (maintenance, electricity, staffing),
+  \item $f_1(\mathbf{x})$ — CAPEX from Eq.~\eqref{eq:f1}; normalisation
+        by CAPEX prevents near-perfect linear correlation with $f_2$
+        ($r > 0.99$) that would degenerate the Pareto front.
+\end{itemize}
+
+\subsubsection*{Objective $f_4$ — Mean Queue Waiting Time (Minimize)}
+\begin{equation}
+f_4(\mathbf{x})
+= \frac{1}{|\{j : x_j = 1\}|}
+  \sum_{j:\,x_j=1} \overline{W}_{q,j}.
+\label{eq:f4}
+\end{equation}
+\textit{where:}
+\begin{itemize}
+  \item $|\{j : x_j = 1\}|$ — number of deployed stations,
+  \item $\overline{W}_{q,j}$ — ToU-weighted mean waiting time at station
+        $j$, evaluated via the M/M/$c$/K model
+        (Section~\ref{sec:queue_layer}),
+  \item a penalty of $+50$~min is added to $f_4$ for every station
+        where $P_{\mathrm{block}} > 10\%$.
+\end{itemize}
+
+%-----------------------------------------
+\subsection{NSGA-II Optimization Layer}
+\label{sec:nsgaii_layer}
+
+NSGA-II is the primary evolutionary optimizer. Each individual in the
+population encodes the binary station-selection vector
+$\mathbf{x} \in \{0,1\}^N$. The algorithm proceeds as follows:
+
+\begin{enumerate}
+    \item \textbf{Initialisation:} A random population of size 80 is
+          generated.
+    \item \textbf{Evaluation:} Each individual is evaluated on all four
+          objectives, including the M/M/$c$/K queueing model and
+          Monte~Carlo demand averaging.
+    \item \textbf{Non-dominated sorting:} Solutions are ranked into
+          Pareto fronts $\mathcal{F}_1 \subset \mathcal{F}_2 \subset \cdots$
+          using fast non-dominated sorting with
+          $\mathcal{O}(MN^2)$ complexity.
+    \item \textbf{Crowding distance selection:} Within the same front,
+          solutions in less-crowded objective regions are preferred,
+          maintaining spread diversity.
+    \item \textbf{Variation:} Offspring are produced via uniform crossover
+          ($p_c = 0.9$) and bit-flip mutation ($p_m = 0.08$).
+    \item \textbf{Elitism:} The combined parent--offspring pool of size
+          $2N$ is reduced back to $N$ by fronts and crowding distance.
+\end{enumerate}
+
+\noindent
+NSGA-II configuration summary:
+\begin{itemize}
+    \item population size $N = 80$, maximum generations = 500,
+    \item crossover probability $p_c = 0.9$ (uniform),
+    \item mutation probability $p_m = 0.08$ (bit-flip),
+    \item early stopping: HV improvement $< 0.0005$ over 40
+          consecutive generations (minimum 100 generations run).
+\end{itemize}
+
+%-----------------------------------------
+\subsection{MOPSO Optimization Layer}
+\label{sec:mopso_layer}
+
+MOPSO is deployed as a comparative benchmark. Unlike NSGA-II, MOPSO
+maintains an external archive of bounded size ($|\mathcal{A}| = 100$)
+storing all historically discovered non-dominated solutions. Each
+particle $j$ carries a continuous position vector
+$\mathbf{p}_j \in [0,1]^N$, binarised at evaluation time via:
+\begin{equation}
+x_j^{(k)} =
+\begin{cases}
+1, & \text{if } p_j^{(k)} > 0.5,\\
+0, & \text{otherwise.}
+\end{cases}
+\label{eq:binarise}
+\end{equation}
+\textit{where:} $p_j^{(k)}$ is the $k$-th component of particle $j$'s
+continuous position vector; the threshold $0.5$ maps the continuous space
+to binary station-selection decisions.
+
+\medskip\noindent
+The velocity update follows the standard constriction form:
+\begin{equation}
+\mathbf{v}_j \leftarrow
+w\,\mathbf{v}_j
++ c_1\,\mathbf{r}_1 \odot
+  \bigl(\mathbf{p}_j^{\mathrm{best}} - \mathbf{p}_j\bigr)
++ c_2\,\mathbf{r}_2 \odot
+  \bigl(\mathbf{g}^{\mathrm{best}} - \mathbf{p}_j\bigr),
+\label{eq:velocity}
+\end{equation}
+\textit{where:}
+\begin{itemize}
+  \item $w = 0.4$ — inertia weight controlling velocity momentum,
+  \item $c_1 = c_2 = 1.5$ — cognitive and social acceleration
+        coefficients,
+  \item $\mathbf{r}_1,\mathbf{r}_2 \sim \mathcal{U}(0,1)^N$ — random
+        perturbation vectors drawn independently each iteration,
+  \item $\mathbf{p}_j^{\mathrm{best}}$ — personal best position of
+        particle $j$ over all past iterations,
+  \item $\mathbf{g}^{\mathrm{best}}$ — global guide selected from archive
+        $\mathcal{A}$ with probability inversely proportional to local
+        crowding distance,
+  \item $\odot$ — element-wise (Hadamard) product.
+\end{itemize}
+
+\noindent
+MOPSO configuration: swarm size = 80, $|\mathcal{A}| = 100$,
+$w = 0.4$, $c_1 = c_2 = 1.5$; early stopping: $\Delta\mathrm{HV} <
+0.0005$ over 40 iterations.
+
+%-----------------------------------------
+\subsection{M/M/$c$/K Queueing Evaluation Layer}
+\label{sec:queue_layer}
+
+Service quality at each selected station is evaluated using an
+M/M/$c$/K finite-capacity queueing model. For station $j$ with
+$c_j$~chargers and $W = 8$ physical waiting bays, the system capacity
+is $K = c_j + 8$. The offered traffic load is:
+\begin{equation}
+a = \frac{\lambda_j}{\mu}, \qquad \mu = 2\ \text{sessions/hr.}
+\label{eq:load}
+\end{equation}
+\textit{where:} $\lambda_j$ — arrival rate at station $j$ (sessions/hr);
+$\mu = 2$ sessions/hr — per-charger service rate (mean service time
+30~min); $a$ — offered load in Erlangs.
+
+\medskip\noindent
+The steady-state empty-system probability is:
+\begin{equation}
+p_0 =
+\left[
+\sum_{n=0}^{c_j} \frac{a^n}{n!}
++
+\sum_{n=c_j+1}^{K} \frac{a^n}{c_j!\; c_j^{\,n-c_j}}
+\right]^{-1}.
+\label{eq:p0}
+\end{equation}
+\textit{where:}
+\begin{itemize}
+  \item $p_0$ — probability the system is completely empty,
+  \item first sum: states $0 \le n \le c_j$ (arrivals served immediately),
+  \item second sum: states $c_j < n \le K$ (queue forms behind $c_j$
+        busy servers),
+  \item $K = c_j + 8$ — maximum system capacity.
+\end{itemize}
+
+\medskip\noindent
+Blocking probability (system full; incoming vehicle turned away):
+\begin{equation}
+P_{\mathrm{block}} = p_K
+= \frac{a^K}{c_j!\; c_j^{\,K-c_j}} \cdot p_0.
+\label{eq:pblock}
+\end{equation}
+\textit{where:} $p_K$ — steady-state probability of exactly $K$ vehicles
+in system; $P_{\mathrm{block}} \leq 0.10$ is the hard constraint —
+violation adds $+50$~min penalty to $f_4$ (Eq.~\eqref{eq:f4}).
+
+\medskip\noindent
+Mean queue waiting time via Little's Law:
+\begin{equation}
+W_{q,j}
+= \frac{L_{q,j}}{\lambda_j\,(1 - P_{\mathrm{block}})} \times 60
+\quad\text{(minutes).}
+\label{eq:wq}
+\end{equation}
+\textit{where:}
+\begin{itemize}
+  \item $L_{q,j}$ — mean number of vehicles waiting (not in service)
+        at station $j$,
+  \item $\lambda_j(1-P_{\mathrm{block}})$ — effective admitted throughput
+        (vehicles/hr entering system),
+  \item $\times 60$ — unit conversion from hours to minutes.
+\end{itemize}
+
+\medskip\noindent
+The day is segmented into three Time-of-Use periods with independent
+arrival rates $\lambda_p$ and demand multipliers:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{llcc}
+\hline
+\textbf{Period} & \textbf{Hours} & \textbf{Multiplier}
+                & \textbf{Price (INR/session)}\\
+\hline
+Peak   & 08--10, 17--19 (3~h)  & $\times 2.8$  & \rupee210 \\
+Normal & 10--17, 19--22 (13~h) & $\times 1.0$  & \rupee150 \\
+Idle   & 22--06 (8~h)          & $\times 0.15$ & \rupee112 \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+The reported $\overline{W}_{q,j}$ is the time-weighted average of
+$W_{q,j}$ across all three ToU periods. Any station with
+$P_{\mathrm{block}} > 10\%$ incurs a 50-minute penalty on objective
+$f_4$, forcing the evolutionary optimizer to provision adequate charger
+capacity at demand bottlenecks.
+
+%-----------------------------------------
+\subsection{Algorithm Performance Evaluation}
+\label{sec:performance_eval}
+
+Both algorithms are compared using three standard multi-objective
+performance indicators computed over the four-dimensional objective space.
+Let $\mathcal{P}$ denote the approximated Pareto front and $\mathbf{r}$
+the reference (nadir) point set at 10\% above the empirical nadir of the
+combined fronts.
+
+\subsubsection*{Hypervolume (HV)}
+\begin{equation}
+\mathrm{HV}(\mathcal{P},\mathbf{r})
+= \lambda_4\!\left(
+    \bigcup_{\mathbf{s}\in\mathcal{P}}
+    [\mathbf{s},\mathbf{r}]
+  \right).
+\label{eq:hv}
+\end{equation}
+\textit{where:}
+\begin{itemize}
+  \item $\mathcal{P}$ — approximated Pareto front produced by the
+        algorithm,
+  \item $\mathbf{r} \in \mathbb{R}^4$ — reference nadir point (set at
+        10\% above empirical nadir of combined fronts),
+  \item $\lambda_4(\cdot)$ — four-dimensional Lebesgue (hyper-volume)
+        measure,
+  \item $[\mathbf{s},\mathbf{r}]$ — hyper-rectangle dominated by
+        solution $\mathbf{s}$ and bounded by $\mathbf{r}$.
+\end{itemize}
+Higher HV indicates a larger dominated objective space — preferred.
+
+\subsubsection*{Generational Distance (GD)}
+\begin{equation}
+\mathrm{GD}(\mathcal{P},\mathcal{P}^*)
+= \frac{1}{|\mathcal{P}|}
+  \sum_{\mathbf{s}\in\mathcal{P}}
+  \min_{\mathbf{s}^*\in\mathcal{P}^*}
+  \|\mathbf{s} - \mathbf{s}^*\|_2.
+\label{eq:gd}
+\end{equation}
+\textit{where:}
+\begin{itemize}
+  \item $\mathcal{P}^*$ — reference Pareto front (union of solutions
+        from both algorithms),
+  \item $\|\mathbf{s} - \mathbf{s}^*\|_2$ — Euclidean distance in
+        $\mathbb{R}^4$ from approximated solution $\mathbf{s}$ to
+        nearest reference point $\mathbf{s}^*$.
+\end{itemize}
+Lower GD indicates closer proximity to the true front — preferred.
+
+\subsubsection*{Spread ($\Delta$)}
+\begin{equation}
+\Delta =
+\frac{d_f + d_l
+      + \displaystyle\sum_{i=1}^{|\mathcal{P}|-1}|d_i - \bar{d}\,|}
+     {d_f + d_l + (|\mathcal{P}|-1)\,\bar{d}}.
+\label{eq:spread}
+\end{equation}
+\textit{where:}
+\begin{itemize}
+  \item $d_i$ — crowding distance between the $i$-th and $(i{+}1)$-th
+        consecutive Pareto solutions along the front,
+  \item $\bar{d}$ — mean crowding distance across all solution pairs,
+  \item $d_f$, $d_l$ — distances from the first/last solutions to the
+        extreme boundary points of the front.
+\end{itemize}
+Lower $\Delta$ indicates a more uniformly distributed Pareto set — preferred.
+
+%-----------------------------------------
+\section{Summary}
+\label{sec:arch_summary}
+
+\noindent
+The proposed architecture unifies four-objective Pareto optimisation,
+stochastic demand modelling, finite-buffer queueing analysis, and formal
+algorithm comparison into a single computational framework.
+Table~\ref{tab:arch_summary} summarises the key design choices, their
+justifications, and corresponding equation cross-references.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Summary of key architectural design choices and their justifications.}
+\label{tab:arch_summary}
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|p{9em}|p{10.5em}|p{12em}|p{4em}|}
+\hline
+\textbf{Component} & \textbf{Design Choice} & \textbf{Justification}
+                   & \textbf{Eq.} \\
+\hline
+Demand model &
+Logistic S-curve + CAGR + Monte~Carlo &
+Captures technology adoption lifecycle and stochastic variability &
+\eqref{eq:cagr}--\eqref{eq:mc} \\
+\hline
+Objective~3 &
+Net ROI (profit\,/\,CAPEX) instead of raw profit &
+Prevents degeneracy with coverage objective ($r > 0.99$) &
+\eqref{eq:f3} \\
+\hline
+Queue model &
+M/M/$c$/K with $K = c + 8$ &
+Finite waiting bays more realistic than Erlang-B loss model &
+\eqref{eq:p0}--\eqref{eq:wq} \\
+\hline
+Demand segmentation &
+Three ToU periods (Peak\,/\,Normal\,/\,Idle) &
+Captures bimodal daily arrival pattern in urban EV charging &
+--- \\
+\hline
+Blocking constraint &
+$P_{\text{block}} \leq 10\%$ as hard penalty in loop &
+Forces optimizer to provision adequate capacity at bottlenecks &
+\eqref{eq:pblock} \\
+\hline
+Algorithms &
+NSGA-II and MOPSO in parallel &
+Complementary strengths; enables formal comparative evaluation &
+\eqref{eq:binarise}--\eqref{eq:velocity} \\
+\hline
+Performance metrics &
+HV, GD, Spread &
+Standard MOEA indicators; algorithm-independent comparison &
+\eqref{eq:hv}--\eqref{eq:spread} \\
+\hline
+\end{tabular}
+\end{table}

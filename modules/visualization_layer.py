@@ -23,18 +23,18 @@ import json
 
 
 PLT_STYLE = {
-    "figure.facecolor": "#0f1117",
-    "axes.facecolor": "#1a1d2e",
-    "axes.edgecolor": "#3a3d5c",
-    "axes.labelcolor": "#e0e0ff",
-    "xtick.color": "#a0a0cc",
-    "ytick.color": "#a0a0cc",
-    "text.color": "#e0e0ff",
-    "grid.color": "#2a2d4a",
+    "figure.facecolor": "#ffffff",
+    "axes.facecolor": "#f8f9fa",
+    "axes.edgecolor": "#333333",
+    "axes.labelcolor": "#111111",
+    "xtick.color": "#222222",
+    "ytick.color": "#222222",
+    "text.color": "#111111",
+    "grid.color": "#cccccc",
     "grid.linestyle": "--",
-    "grid.alpha": 0.5,
-    "legend.facecolor": "#1a1d2e",
-    "legend.edgecolor": "#3a3d5c",
+    "grid.alpha": 0.7,
+    "legend.facecolor": "#ffffff",
+    "legend.edgecolor": "#cccccc",
     "font.family": "DejaVu Sans",
 }
 
@@ -63,22 +63,33 @@ def _b64(fig):
 
 
 def plot_pareto_comparison(nsga2_obj, mopso_obj, out_path):
+    # Bug #5: Standardize units — Lakhs for cost, % for coverage, matching individual plots
     with plt.rc_context(PLT_STYLE):
         fig, axes = plt.subplots(2, 2, figsize=(14, 10))
         fig.suptitle("Pareto Front Comparison: NSGA-II vs MOPSO", fontsize=14,
-                     color="#e0e0ff", fontweight="bold", y=0.98)
+                     color="#111111", fontweight="bold", y=0.98)
+
+        def _prep(obj):
+            cost  =  obj[:, 0] / 1e5          # Lakhs
+            cov   = -obj[:, 1] * 100           # %
+            roi   = -obj[:, 2]                 # dimensionless ROI
+            wq    =  obj[:, 3]                 # minutes (no clip)
+            return cost, cov, roi, wq
+
+        n2_cost, n2_cov, n2_roi, n2_wq = _prep(nsga2_obj)
+        mo_cost, mo_cov, mo_roi, mo_wq = _prep(mopso_obj)
+
         pairs = [
-            (0, 1, "Installation Cost (INR)", "Coverage (fraction)"),
-            (0, 2, "Installation Cost (INR)", "Annual Profit (INR)"),
-            (1, 2, "Coverage (fraction)", "Annual Profit (INR)"),
-            (2, 3, "Annual Profit (INR)", "Mean Waiting Time (min)"),
+            (axes[0,0], n2_cost, n2_cov,  mo_cost, mo_cov,  "Installation Cost (₹ Lakhs)", "Demand Coverage (%)"),
+            (axes[0,1], n2_cost, n2_roi,  mo_cost, mo_roi,  "Installation Cost (₹ Lakhs)", "Net ROI (profit/capex)"),
+            (axes[1,0], n2_cov,  n2_roi,  mo_cov,  mo_roi,  "Demand Coverage (%)",          "Net ROI (profit/capex)"),
+            (axes[1,1], n2_roi,  n2_wq,   mo_roi,  mo_wq,   "Net ROI (profit/capex)",       "Mean Wait Time (min)"),
         ]
-        for ax, (xi, yi, xl, yl) in zip(axes.flat, pairs):
-            n2x = nsga2_obj[:, xi]; n2y = -nsga2_obj[:, yi] if yi in [1,2] else nsga2_obj[:, yi]
-            mox = mopso_obj[:, xi]; moy = -mopso_obj[:, yi] if yi in [1,2] else mopso_obj[:, yi]
-            if xi in [1, 2]: n2x = -n2x; mox = -mox
-            ax.scatter(n2x, n2y, c="#00d4ff", s=35, alpha=0.7, label="NSGA-II", zorder=3)
-            ax.scatter(mox, moy, c="#ff6b9d", marker="s", s=25, alpha=0.7, label="MOPSO", zorder=3)
+        for ax, n2x, n2y, mox, moy, xl, yl in pairs:
+            ax.scatter(n2x, n2y, c="#00a0d0", marker="o", s=35, alpha=0.75,
+                       edgecolors="#003040", label="NSGA-II", zorder=3)
+            ax.scatter(mox, moy, c="#e04080", marker="s", s=25, alpha=0.75,
+                       edgecolors="#400020", label="MOPSO", zorder=3)
             ax.set_xlabel(xl, fontsize=8); ax.set_ylabel(yl, fontsize=8)
             ax.legend(fontsize=7); ax.grid(True, alpha=0.3)
         plt.tight_layout()
@@ -87,23 +98,27 @@ def plot_pareto_comparison(nsga2_obj, mopso_obj, out_path):
         print(f"[Viz] Pareto comparison saved: {out_path}")
 
 
-def plot_queue_distribution(nsga2_obj, mopso_obj, out_path):
+def plot_queue_distribution(nsga2_obj, mopso_obj, out_path,
+                              nsga2_raw_wq=None, mopso_raw_wq=None):
+    # Bug #3: Plot REAL Wq (from M/M/c/K), not the penalty-inflated f4.
     with plt.rc_context(PLT_STYLE):
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
-        fig.suptitle("Queue Waiting Time Distribution (Mean Wq per Solution)",
-                     fontsize=12, color="#e0e0ff", fontweight="bold")
-        for ax, obj, color, title in [
-            (ax1, nsga2_obj, "#00d4ff", "NSGA-II"),
-            (ax2, mopso_obj, "#ff6b9d", "MOPSO"),
+        fig.suptitle("Queue Waiting Time Distribution (Mean Wq per Solution, M/M/c/K — no penalty)",
+                     fontsize=12, color="#111111", fontweight="bold")
+        n2_wq = nsga2_raw_wq if nsga2_raw_wq is not None else nsga2_obj[:, 3]
+        mo_wq = mopso_raw_wq if mopso_raw_wq is not None else mopso_obj[:, 3]
+        for ax, wq_arr, color, title in [
+            (ax1, n2_wq, "#00d4ff", "NSGA-II"),
+            (ax2, mo_wq, "#ff6b9d", "MOPSO"),
         ]:
-            wq = obj[:, 3]; wq = wq[np.isfinite(wq)]
-            wq = np.clip(wq, 0, 200)
+            wq = np.asarray(wq_arr); wq = wq[np.isfinite(wq)]
             if len(wq) > 0:
-                ax.hist(wq, bins=30, color=color, alpha=0.8, edgecolor="#0f1117",
+                ax.hist(wq, bins=30, color=color, alpha=0.8, edgecolor="#ffffff",
                         density=True)
-            ax.axvline(x=20, color="#ff4444", linestyle="--", label="Threshold (20 min)")
+            ax.axvline(x=20, color="#333333", linestyle="--", label="Threshold (20 min)")
             med = np.median(wq) if len(wq) > 0 else 0
-            ax.axvline(x=med, color="#ffff00", linestyle="-.", label=f"Median ({med:.1f} min)")
+            ax.axvline(x=med, color="#999999", linestyle="-.",
+                       label=f"Median ({med:.1f} min)")
             ax.set_title(title, color=color, fontsize=11, fontweight="bold")
             ax.set_xlabel("Mean Waiting Time (minutes)", fontsize=9)
             ax.set_ylabel("Density", fontsize=9)
@@ -114,10 +129,12 @@ def plot_queue_distribution(nsga2_obj, mopso_obj, out_path):
         print(f"[Viz] Queue waiting distribution saved: {out_path}")
 
 
-def plot_profit_uncertainty(nsga2_obj, mopso_obj, mc_scenarios, out_path):
+def plot_profit_uncertainty(nsga2_obj, mopso_obj, out_path):
+    # f3 is ROI (dimensionless); recover annual profit in Crores = ROI × capex.
     with plt.rc_context(PLT_STYLE):
         fig, ax = plt.subplots(figsize=(10, 5))
-        profits_n2 = -nsga2_obj[:, 2]; profits_mo = -mopso_obj[:, 2]
+        profits_n2 = (-nsga2_obj[:, 2]) * nsga2_obj[:, 0] / 1e7
+        profits_mo = (-mopso_obj[:, 2]) * mopso_obj[:, 0] / 1e7
         all_profits = np.concatenate([profits_n2, profits_mo])
         all_profits = all_profits[np.isfinite(all_profits)]
         if len(all_profits) > 1:
@@ -126,11 +143,10 @@ def plot_profit_uncertainty(nsga2_obj, mopso_obj, mc_scenarios, out_path):
             ax.hist(profits_mo[np.isfinite(profits_mo)], bins=25, color="#ff6b9d",
                     alpha=0.7, label="MOPSO", density=True)
         ax.set_title("Annual Profit Distribution Across Pareto Solutions",
-                     color="#e0e0ff", fontsize=11, fontweight="bold")
-        ax.set_xlabel("Annual Profit (INR)", fontsize=9)
+                     color="#111111", fontsize=11, fontweight="bold")
+        ax.set_xlabel("Annual Profit (₹ Crores)", fontsize=9)
         ax.set_ylabel("Density", fontsize=9)
         ax.legend(fontsize=9); ax.grid(True, alpha=0.3)
-        fig.patch.set_facecolor("#0f1117")
         plt.tight_layout()
         fig.savefig(out_path, bbox_inches="tight", dpi=130)
         plt.close(fig)
@@ -138,14 +154,21 @@ def plot_profit_uncertainty(nsga2_obj, mopso_obj, mc_scenarios, out_path):
 
 
 def plot_scalability(scalability_data, out_path):
+    # Bug #4: Display median runtimes with ±std error bars
     with plt.rc_context(PLT_STYLE):
         fig, ax = plt.subplots(figsize=(8, 5))
-        ax.plot(scalability_data["sizes"], scalability_data["nsga2_times"],
-                "o-", color="#00d4ff", label="NSGA-II", linewidth=2)
-        ax.plot(scalability_data["sizes"], scalability_data["mopso_times"],
-                "s-", color="#ff6b9d", label="MOPSO", linewidth=2)
-        ax.set_title("Runtime Scalability", color="#e0e0ff", fontsize=11,
-                     fontweight="bold")
+        sizes = scalability_data["sizes"]
+        ns2_t = scalability_data["nsga2_times"]
+        mo_t  = scalability_data["mopso_times"]
+        # Error bars from std (present if benchmark used timeit.repeat)
+        ns2_e = scalability_data.get("nsga2_stds", [0]*len(sizes))
+        mo_e  = scalability_data.get("mopso_stds",  [0]*len(sizes))
+        ax.errorbar(sizes, ns2_t, yerr=ns2_e, fmt="o-",
+                    color="#000000", label="NSGA-II (median ± std)", linewidth=2, capsize=4)
+        ax.errorbar(sizes, mo_t,  yerr=mo_e,  fmt="s-",
+                    color="#777777", label="MOPSO (median ± std)",  linewidth=2, capsize=4)
+        ax.set_title("Runtime Scalability (Median of 5 Runs)", color="#111111",
+                     fontsize=11, fontweight="bold")
         ax.set_xlabel("Number of Candidate Locations", fontsize=9)
         ax.set_ylabel("Runtime (seconds)", fontsize=9)
         ax.legend(fontsize=9); ax.grid(True, alpha=0.3)
@@ -166,46 +189,48 @@ def plot_scalability(scalability_data, out_path):
 def plot_nsga2_individual(nsga2_obj: np.ndarray, nsga2_rt: float, out_path: str):
     """4-panel Pareto scatter for NSGA-II alone with detailed annotations."""
     with plt.rc_context(PLT_STYLE):
-        fig, axes = plt.subplots(2, 2, figsize=(14, 11), facecolor="#0d0f1a")
+        fig, axes = plt.subplots(2, 2, figsize=(14, 11), facecolor="#ffffff")
         fig.suptitle("NSGA-II Individual Pareto Front Results",
-                     color="#00d4ff", fontsize=14, fontweight="bold", y=0.98)
+                     color="#111111", fontsize=14, fontweight="bold", y=0.98)
         obj = nsga2_obj.copy()
-        cost   =  obj[:, 0] / 1e5          # → Lakhs
-        cov    = -obj[:, 1] * 100           # → % coverage
-        profit = -obj[:, 2] / 1e7          # → Crores
-        # cap Wq for display
-        wq     = np.clip(obj[:, 3], 0, 300)
+        cost =  obj[:, 0] / 1e5          # → Lakhs
+        cov  = -obj[:, 1] * 100           # → % coverage
+        roi  = -obj[:, 2]                 # → dimensionless ROI (Bug #2)
+        wq   =  obj[:, 3]                 # → actual Wq in min (no clip, Bug #3)
 
         pairs = [
-            (axes[0,0], cost,   cov,    "Cost (₹ Lakhs)",   "Demand Coverage (%)",    "#00d4ff"),
-            (axes[0,1], cost,   profit, "Cost (₹ Lakhs)",   "Annual Profit (₹ Crores)","#00ffaa"),
-            (axes[1,0], cov,    profit, "Demand Coverage (%)","Annual Profit (₹ Crores)","#ffcc00"),
-            (axes[1,1], profit, wq,     "Annual Profit (₹ Crores)","Mean Wait Time (min)",   "#ff6b9d"),
+            (axes[0,0], cost, cov,  "Cost (₹ Lakhs)",         "Demand Coverage (%)",    "#000000"),
+            (axes[0,1], cost, roi,  "Cost (₹ Lakhs)",         "Net ROI (profit/capex)", "#000000"),
+            (axes[1,0], cov,  roi,  "Demand Coverage (%)",    "Net ROI (profit/capex)", "#000000"),
+            (axes[1,1], roi,  wq,   "Net ROI (profit/capex)", "Mean Wait Time (min)",   "#000000"),
         ]
         for ax, x, y, xl, yl, col in pairs:
-            ax.set_facecolor("#111826")
-            sc = ax.scatter(x, y, c=x, cmap="cool", s=55, alpha=0.85, edgecolors="none", zorder=3)
+            ax.set_facecolor("#f8f9fa")
+            sc = ax.scatter(x, y, c="#00a0d0", marker="o", s=55, alpha=0.80,
+                            edgecolors="#003040", zorder=3)
             # Highlight best coverage solution
             best_cov_idx = np.argmax(cov)
-            ax.scatter(x[best_cov_idx], y[best_cov_idx], s=140, color="#ffff00",
-                       marker="*", zorder=5, label=f"Best coverage ({cov[best_cov_idx]:.1f}%)")
+            ax.scatter(x[best_cov_idx], y[best_cov_idx], s=220, color="#ffcc00",
+                       marker="*", edgecolors="#333333", zorder=5,
+                       label=f"Best coverage ({cov[best_cov_idx]:.1f}%)")
             # Highlight min cost solution
             best_cost_idx = np.argmin(cost)
-            ax.scatter(x[best_cost_idx], y[best_cost_idx], s=100, color="#ff5050",
-                       marker="D", zorder=5, label=f"Min cost (₹{cost[best_cost_idx]:.0f}L)")
-            ax.set_xlabel(xl, fontsize=9, color="#a0b0c0")
-            ax.set_ylabel(yl, fontsize=9, color="#a0b0c0")
-            ax.tick_params(colors="#8090a0", labelsize=8)
-            ax.grid(True, alpha=0.2)
+            ax.scatter(x[best_cost_idx], y[best_cost_idx], s=120, color="#e04040",
+                       marker="D", edgecolors="#200000", zorder=5,
+                       label=f"Min cost (₹{cost[best_cost_idx]:.0f}L)")
+            ax.set_xlabel(xl, fontsize=9, color="#333333")
+            ax.set_ylabel(yl, fontsize=9, color="#333333")
+            ax.tick_params(colors="#111111", labelsize=8)
+            ax.grid(True, alpha=0.5)
             ax.legend(fontsize=7, loc="best")
 
         fig.text(0.5, 0.01,
                  f"NSGA-II  |  {len(nsga2_obj)} Pareto solutions  |  "
                  f"Runtime: {nsga2_rt:.1f}s  |  "
                  f"Coverage: {cov.min():.1f}%–{cov.max():.1f}%  |  "
-                 f"Profit: ₹{profit.min():.1f}Cr–₹{profit.max():.1f}Cr  |  "
+                 f"ROI: {roi.min():.2f}–{roi.max():.2f}  |  "
                  f"Cost: ₹{cost.min():.0f}L–₹{cost.max():.0f}L",
-                 ha="center", color="#607090", fontsize=8)
+                 ha="center", color="#333333", fontsize=8)
         plt.tight_layout(rect=[0, 0.03, 1, 0.97])
         fig.savefig(out_path, bbox_inches="tight", dpi=130)
         plt.close(fig)
@@ -215,43 +240,46 @@ def plot_nsga2_individual(nsga2_obj: np.ndarray, nsga2_rt: float, out_path: str)
 def plot_mopso_individual(mopso_obj: np.ndarray, mopso_rt: float, out_path: str):
     """4-panel Pareto scatter for MOPSO alone with detailed annotations."""
     with plt.rc_context(PLT_STYLE):
-        fig, axes = plt.subplots(2, 2, figsize=(14, 11), facecolor="#0d0f1a")
+        fig, axes = plt.subplots(2, 2, figsize=(14, 11), facecolor="#ffffff")
         fig.suptitle("MOPSO Individual Pareto Front Results",
-                     color="#ff6b9d", fontsize=14, fontweight="bold", y=0.98)
+                     color="#111111", fontsize=14, fontweight="bold", y=0.98)
         obj = mopso_obj.copy()
-        cost   =  obj[:, 0] / 1e5
-        cov    = -obj[:, 1] * 100
-        profit = -obj[:, 2] / 1e7
-        wq     = np.clip(obj[:, 3], 0, 300)
+        cost =  obj[:, 0] / 1e5          # → Lakhs
+        cov  = -obj[:, 1] * 100           # → % coverage
+        roi  = -obj[:, 2]                 # → dimensionless ROI (Bug #2)
+        wq   =  obj[:, 3]                 # → actual Wq in min (no clip, Bug #3)
 
         pairs = [
-            (axes[0,0], cost,   cov,    "Cost (₹ Lakhs)",    "Demand Coverage (%)",     "#ff6b9d"),
-            (axes[0,1], cost,   profit, "Cost (₹ Lakhs)",    "Annual Profit (₹ Crores)","#ffaa55"),
-            (axes[1,0], cov,    profit, "Demand Coverage (%)", "Annual Profit (₹ Crores)","#c97fdb"),
-            (axes[1,1], profit, wq,     "Annual Profit (₹ Crores)","Mean Wait Time (min)",    "#ff9999"),
+            (axes[0,0], cost, cov, "Cost (₹ Lakhs)",         "Demand Coverage (%)",     "#000000"),
+            (axes[0,1], cost, roi, "Cost (₹ Lakhs)",         "Net ROI (profit/capex)",  "#000000"),
+            (axes[1,0], cov,  roi, "Demand Coverage (%)",    "Net ROI (profit/capex)",  "#000000"),
+            (axes[1,1], roi,  wq,  "Net ROI (profit/capex)", "Mean Wait Time (min)",    "#000000"),
         ]
         for ax, x, y, xl, yl, col in pairs:
-            ax.set_facecolor("#160d1a")
-            sc = ax.scatter(x, y, c=x, cmap="spring", s=55, alpha=0.85, edgecolors="none", zorder=3)
+            ax.set_facecolor("#f8f9fa")
+            sc = ax.scatter(x, y, c="#e04080", marker="s", s=45, alpha=0.80,
+                            edgecolors="#400020", zorder=3)
             best_cov_idx = np.argmax(cov)
-            ax.scatter(x[best_cov_idx], y[best_cov_idx], s=140, color="#ffff00",
-                       marker="*", zorder=5, label=f"Best coverage ({cov[best_cov_idx]:.1f}%)")
+            ax.scatter(x[best_cov_idx], y[best_cov_idx], s=220, color="#ffcc00",
+                       marker="*", edgecolors="#333333", zorder=5,
+                       label=f"Best coverage ({cov[best_cov_idx]:.1f}%)")
             best_cost_idx = np.argmin(cost)
-            ax.scatter(x[best_cost_idx], y[best_cost_idx], s=100, color="#00ffaa",
-                       marker="D", zorder=5, label=f"Min cost (₹{cost[best_cost_idx]:.0f}L)")
-            ax.set_xlabel(xl, fontsize=9, color="#a0b0c0")
-            ax.set_ylabel(yl, fontsize=9, color="#a0b0c0")
-            ax.tick_params(colors="#8090a0", labelsize=8)
-            ax.grid(True, alpha=0.2)
+            ax.scatter(x[best_cost_idx], y[best_cost_idx], s=120, color="#00c070",
+                       marker="D", edgecolors="#003020", zorder=5,
+                       label=f"Min cost (₹{cost[best_cost_idx]:.0f}L)")
+            ax.set_xlabel(xl, fontsize=9, color="#333333")
+            ax.set_ylabel(yl, fontsize=9, color="#333333")
+            ax.tick_params(colors="#111111", labelsize=8)
+            ax.grid(True, alpha=0.5)
             ax.legend(fontsize=7, loc="best")
 
         fig.text(0.5, 0.01,
                  f"MOPSO  |  {len(mopso_obj)} Pareto solutions  |  "
                  f"Runtime: {mopso_rt:.1f}s  |  "
                  f"Coverage: {cov.min():.1f}%–{cov.max():.1f}%  |  "
-                 f"Profit: ₹{profit.min():.1f}Cr–₹{profit.max():.1f}Cr  |  "
+                 f"ROI: {roi.min():.2f}–{roi.max():.2f}  |  "
                  f"Cost: ₹{cost.min():.0f}L–₹{cost.max():.0f}L",
-                 ha="center", color="#705060", fontsize=8)
+                 ha="center", color="#333333", fontsize=8)
         plt.tight_layout(rect=[0, 0.03, 1, 0.97])
         fig.savefig(out_path, bbox_inches="tight", dpi=130)
         plt.close(fig)
@@ -260,41 +288,41 @@ def plot_mopso_individual(mopso_obj: np.ndarray, mopso_rt: float, out_path: str)
 def plot_nsga2_convergence(history: list, out_path: str):
     """Plot NSGA-II Hypervolume vs generation. HV is monotonically non-decreasing."""
     with plt.rc_context(PLT_STYLE):
-        fig, ax = plt.subplots(figsize=(11, 5), facecolor="#0f1117")
+        fig, ax = plt.subplots(figsize=(11, 5), facecolor="#ffffff")
         gens = list(range(1, len(history) + 1))
         # HV must be non-decreasing: take cumulative max for display
         hv_mono = np.maximum.accumulate(history)
         # Raw HV (may have minor fluctuations due to Pareto front churning)
-        ax.plot(gens, history, color="#1a4a6a", linewidth=1, alpha=0.4, zorder=2,
+        ax.plot(gens, history, color="#999999", linewidth=1, alpha=0.8, zorder=2,
                 label="Raw HV (per generation)")
-        ax.plot(gens, hv_mono, color="#00d4ff", linewidth=2.5, zorder=3,
+        ax.plot(gens, hv_mono, color="#000000", linewidth=2.5, zorder=3,
                 label="Cumulative best HV")
-        ax.fill_between(gens, 0, hv_mono, alpha=0.1, color="#00d4ff")
+        ax.fill_between(gens, 0, hv_mono, alpha=0.1, color="#000000")
         # Mark knee point (max HV gain rate)
         diffs = np.diff(hv_mono)
         knee  = int(np.argmax(diffs)) + 1 if len(diffs) > 0 else 1
-        ax.axvline(x=knee, color="#ffff00", linestyle="--", alpha=0.6, linewidth=1.5,
+        ax.axvline(x=knee, color="#555555", linestyle="--", alpha=0.8, linewidth=1.5,
                    label=f"Fastest HV gain: gen {knee}")
         # Plateau detection
         plateau_start = next((i for i in range(len(diffs)-1, 0, -1) if diffs[i] > 0), len(gens)-1)
-        ax.axvline(x=plateau_start, color="#00ff99", linestyle=":", alpha=0.7, linewidth=1.5,
+        ax.axvline(x=plateau_start, color="#222222", linestyle=":", alpha=0.8, linewidth=1.5,
                    label=f"HV plateau: gen ~{plateau_start}")
         ax.set_title("NSGA-II Convergence — Hypervolume (HV) per Generation",
-                     color="#e0e0ff", fontsize=13, fontweight="bold", pad=12)
-        ax.set_xlabel("Generation", fontsize=10, color="#a0a0cc")
-        ax.set_ylabel("Hypervolume (f₁ vs f₂ space)", fontsize=10, color="#a0a0cc")
+                     color="#111111", fontsize=13, fontweight="bold", pad=12)
+        ax.set_xlabel("Generation", fontsize=10, color="#333333")
+        ax.set_ylabel("Hypervolume (f₁ vs f₂ space)", fontsize=10, color="#333333")
         ax.legend(fontsize=8, loc="lower right")
-        ax.grid(True, alpha=0.3)
+        ax.grid(True, alpha=0.7)
         # Annotate key values
         ax.annotate(f"HV₀ = {history[0]:.3e}",
                     xy=(1, hv_mono[0]), xytext=(len(gens)//8, hv_mono[0]*0.7),
-                    color="#aaaacc", fontsize=8,
-                    arrowprops=dict(arrowstyle="->", color="#5060a0"))
+                    color="#555555", fontsize=8,
+                    arrowprops=dict(arrowstyle="->", color="#555555"))
         ax.annotate(f"HV_final = {hv_mono[-1]:.3e}",
                     xy=(len(gens), hv_mono[-1]),
                     xytext=(len(gens)*0.7, hv_mono[-1]*0.85),
-                    color="#00d4ff", fontsize=8,
-                    arrowprops=dict(arrowstyle="->", color="#00d4ff"))
+                    color="#000000", fontsize=8,
+                    arrowprops=dict(arrowstyle="->", color="#000000"))
         plt.tight_layout()
         fig.savefig(out_path, bbox_inches="tight", dpi=130)
         plt.close(fig)
@@ -304,36 +332,36 @@ def plot_nsga2_convergence(history: list, out_path: str):
 def plot_mopso_convergence(history: list, out_path: str):
     """Plot MOPSO Hypervolume vs iteration. HV is monotonically non-decreasing."""
     with plt.rc_context(PLT_STYLE):
-        fig, ax = plt.subplots(figsize=(11, 5), facecolor="#0f1117")
+        fig, ax = plt.subplots(figsize=(11, 5), facecolor="#ffffff")
         iters   = list(range(1, len(history) + 1))
         hv_mono = np.maximum.accumulate(history)
-        ax.plot(iters, history, color="#6a1a3a", linewidth=1, alpha=0.4, zorder=2,
+        ax.plot(iters, history, color="#999999", linewidth=1, alpha=0.8, zorder=2,
                 label="Raw HV (per iteration)")
-        ax.plot(iters, hv_mono, color="#ff6b9d", linewidth=2.5, zorder=3,
+        ax.plot(iters, hv_mono, color="#555555", linewidth=2.5, zorder=3,
                 label="Cumulative best HV")
-        ax.fill_between(iters, 0, hv_mono, alpha=0.1, color="#ff6b9d")
+        ax.fill_between(iters, 0, hv_mono, alpha=0.1, color="#555555")
         diffs = np.diff(hv_mono)
         knee  = int(np.argmax(diffs)) + 1 if len(diffs) > 0 else 1
-        ax.axvline(x=knee, color="#ffff00", linestyle="--", alpha=0.6, linewidth=1.5,
+        ax.axvline(x=knee, color="#333333", linestyle="--", alpha=0.8, linewidth=1.5,
                    label=f"Fastest HV gain: iter {knee}")
         plateau_start = next((i for i in range(len(diffs)-1, 0, -1) if diffs[i] > 0), len(iters)-1)
-        ax.axvline(x=plateau_start, color="#aa55ff", linestyle=":", alpha=0.7, linewidth=1.5,
+        ax.axvline(x=plateau_start, color="#111111", linestyle=":", alpha=0.8, linewidth=1.5,
                    label=f"HV plateau: iter ~{plateau_start}")
         ax.set_title("MOPSO Convergence — Hypervolume (HV) per Iteration",
-                     color="#e0e0ff", fontsize=13, fontweight="bold", pad=12)
-        ax.set_xlabel("Iteration", fontsize=10, color="#a0a0cc")
-        ax.set_ylabel("Hypervolume (f₁ vs f₂ space)", fontsize=10, color="#a0a0cc")
+                     color="#111111", fontsize=13, fontweight="bold", pad=12)
+        ax.set_xlabel("Iteration", fontsize=10, color="#333333")
+        ax.set_ylabel("Hypervolume (f₁ vs f₂ space)", fontsize=10, color="#333333")
         ax.legend(fontsize=8, loc="lower right")
-        ax.grid(True, alpha=0.3)
+        ax.grid(True, alpha=0.7)
         ax.annotate(f"HV₀ = {history[0]:.3e}",
                     xy=(1, hv_mono[0]), xytext=(len(iters)//8, hv_mono[0]*0.7),
-                    color="#aaaacc", fontsize=8,
-                    arrowprops=dict(arrowstyle="->", color="#8090c0"))
+                    color="#555555", fontsize=8,
+                    arrowprops=dict(arrowstyle="->", color="#555555"))
         ax.annotate(f"HV_final = {hv_mono[-1]:.3e}",
                     xy=(len(iters), hv_mono[-1]),
                     xytext=(len(iters)*0.7, hv_mono[-1]*0.85),
-                    color="#ff6b9d", fontsize=8,
-                    arrowprops=dict(arrowstyle="->", color="#ff6b9d"))
+                    color="#555555", fontsize=8,
+                    arrowprops=dict(arrowstyle="->", color="#555555"))
         plt.tight_layout()
         fig.savefig(out_path, bbox_inches="tight", dpi=130)
         plt.close(fig)
@@ -502,7 +530,8 @@ def _build_nsga2_section(nsga2_obj, nsga2_hist, nsga2_rt, indicators,
     obj   = nsga2_obj.copy()
     cost  = obj[:, 0] / 1e5
     cov   = -obj[:, 1] * 100
-    prof  = -obj[:, 2] / 1e7
+    # ROI objective is dimensionless (annual_profit/capex); recover rupee profit
+    prof  = (-obj[:, 2]) * obj[:, 0] / 1e7   # annual profit in Crores
     wq    = np.clip(obj[:, 3], 0, 300)
 
     n_par   = len(obj)
@@ -604,7 +633,8 @@ def _build_mopso_section(mopso_obj, mopso_hist, mopso_rt, indicators,
     obj   = mopso_obj.copy()
     cost  = obj[:, 0] / 1e5
     cov   = -obj[:, 1] * 100
-    prof  = -obj[:, 2] / 1e7
+    # ROI objective is dimensionless (annual_profit/capex); recover rupee profit
+    prof  = (-obj[:, 2]) * obj[:, 0] / 1e7   # annual profit in Crores
     wq    = np.clip(obj[:, 3], 0, 300)
 
     n_par  = len(obj)
@@ -693,12 +723,15 @@ def _build_mopso_section(mopso_obj, mopso_hist, mopso_rt, indicators,
 
 
 def _build_comparison_section(nsga2_obj, mopso_obj, indicators,
-                               nsga2_rt, mopso_rt, pareto_b64) -> str:
+                               nsga2_rt, mopso_rt, pareto_b64,
+                               n_variables: int = None) -> str:
     """Head-to-head comparison section with detailed explanations."""
     n2  = nsga2_obj.copy()
     mo  = mopso_obj.copy()
     n2_cov  = -n2[:, 1] * 100;  mo_cov  = -mo[:, 1] * 100
-    n2_prof = -n2[:, 2] / 1e7;  mo_prof = -mo[:, 2] / 1e7
+    # ROI objective is dimensionless; recover annual profit in Crores = roi * capex / 1e7
+    n2_prof = (-n2[:, 2]) * n2[:, 0] / 1e7
+    mo_prof = (-mo[:, 2]) * mo[:, 0] / 1e7
     n2_cost =  n2[:, 0] / 1e5;  mo_cost =  mo[:, 0] / 1e5
     n2_wq   = np.clip(n2[:, 3], 0, 300)
     mo_wq   = np.clip(mo[:, 3], 0, 300)
@@ -758,7 +791,7 @@ def _build_comparison_section(nsga2_obj, mopso_obj, indicators,
     <div class="section-label" style="color:#ffcc00">Algorithm Comparison</div>
     <div class="section-title">NSGA-II vs MOPSO — Head-to-Head</div>
     <p class="section-desc">
-      Both algorithms solved the same 4-objective, 118-variable binary problem for 500 rounds.
+      Both algorithms solved the same 4-objective, {n_variables if n_variables else len(nsga2_obj[0]) if len(nsga2_obj) else '?'}-variable binary problem for 500 rounds.
       Every metric below is computed from their final Pareto fronts.
     </p>
   </div>
@@ -812,9 +845,9 @@ def _build_comparison_section(nsga2_obj, mopso_obj, indicators,
       <br>
       <span style="font-size:.83rem;color:#8090b0;line-height:1.8">
         <b>Recommendation:</b>
-        {"Use <b style=\'color:#00d4ff\'>NSGA-II</b> for final decision-making — it achieves better Hypervolume and Generational Distance, meaning its Pareto solutions are both higher quality and closer to the true optimal frontier." 
+        {('Use <b style="color:#00d4ff">NSGA-II</b> for final decision-making — it achieves better Hypervolume and Generational Distance, meaning its Pareto solutions are both higher quality and closer to the true optimal frontier.') 
          if overall=="NSGA-II" else
-         "Use <b style=\'color:#ff6b9d\'>MOPSO</b> for final decision-making — it achieves better Hypervolume and more evenly spread solutions, giving more diverse trade-off options."}
+         ('Use <b style="color:#ff6b9d">MOPSO</b> for final decision-making — it achieves better Hypervolume and more evenly spread solutions, giving more diverse trade-off options.')}
         Both algorithms agree on the general shape of the Pareto front — providing strong confidence
         in the quality of the results.
       </span>
@@ -879,10 +912,14 @@ def _build_panel_defence_section(nsga2_obj, mopso_obj, mopso_hist, mopso_rate_b6
     Fix 6 – MOPSO convergence rate evidence
     """
     # ── Fix 4: NPV calc ──────────────────────────────────────────────────────
+    # f3 is ROI = annual_profit / capex (dimensionless); recover rupees/yr.
     n2  = nsga2_obj.copy()
-    best_idx = int(np.argmax(-n2[:, 2]))          # max profit solution
-    capex  = float(n2[best_idx, 0])               # f1 = cost (capex)
-    profit = float(-n2[best_idx, 2])              # f3 stored as negative
+    roi_vec = -n2[:, 2]
+    capex_vec = n2[:, 0]
+    profit_vec = roi_vec * capex_vec              # annual profit in INR
+    best_idx = int(np.argmax(profit_vec))         # max annual profit solution
+    capex  = float(capex_vec[best_idx])           # f1 = cost (capex)
+    profit = float(profit_vec[best_idx])          # annual profit (INR/yr)
     r      = 0.10                                 # WACC / discount rate
     horizon = 10                                   # years
     npv = sum(profit / (1 + r) ** t for t in range(1, horizon + 1)) - capex
@@ -1377,6 +1414,8 @@ def generate_html_report(
     # Build summary rows for indicators table
     ind_rows = ""
     for algo, vals in indicators.items():
+        if not isinstance(vals, dict):   # skip flat keys like "nsga2_hv", "mopso_gd"
+            continue
         ind_rows += (
             f"<tr><td>{algo}</td>"
             f"<td>{vals['Hypervolume']:.4f}</td>"
@@ -1414,7 +1453,8 @@ def generate_html_report(
         mopso_obj, mopso_hist, mopso_rt, indicators,
         mopso_ind_b64, mopso_conv_b64)
     comparison_html      = _build_comparison_section(
-        nsga2_obj, mopso_obj, indicators, nsga2_rt, mopso_rt, pareto_b64)
+        nsga2_obj, mopso_obj, indicators, nsga2_rt, mopso_rt, pareto_b64,
+        n_variables=(len(candidate_df) if candidate_df is not None else None))
     explanation_html = _build_explanation_section(cfg, candidate_df=candidate_df, station_details=station_details)
     panel_defence_html = _build_panel_defence_section(
         nsga2_obj, mopso_obj, mopso_hist, mopso_rate_b64)
@@ -1528,7 +1568,7 @@ def generate_html_report(
 <!-- HERO -->
 <section class="hero" id="overview">
   <div>
-    <div class="badge">Indore Municipal Corporation · 85 Wards · 30 Candidate Venues</div>
+    <div class="badge">Indore Municipal Corporation · {len(wards_df)} Wards · {len(candidate_df) if candidate_df is not None else '?'} Candidate Venues</div>
     <h1>EV Charging Station<br>Optimization Framework</h1>
     <p>NSGA-II + MOPSO multi-objective optimization with venue-aware placement,
     time-of-use pricing, interactive station map, and M/M/c queue modeling.</p>
@@ -1577,11 +1617,11 @@ def generate_html_report(
       <div class="kpi-lbl">Daily Sessions 2035</div>
     </div>
     <div class="kpi">
-      <div class="kpi-val">30</div>
+      <div class="kpi-val">{len(candidate_df) if candidate_df is not None else '?'}</div>
       <div class="kpi-lbl">Candidate Venues</div>
     </div>
     <div class="kpi">
-      <div class="kpi-val">4</div>
+      <div class="kpi-val">{candidate_df['type'].nunique() if candidate_df is not None else '?'}</div>
       <div class="kpi-lbl">Venue Types</div>
     </div>
   </div>
@@ -1842,26 +1882,26 @@ def plot_mopso_convergence_rate(history: list, out_path: str):
     This directly answers 'Did MOPSO converge?' for the panel.
     """
     with plt.rc_context(PLT_STYLE):
-        fig, axes = plt.subplots(1, 2, figsize=(14, 5), facecolor="#0f1117")
+        fig, axes = plt.subplots(1, 2, figsize=(14, 5), facecolor="#ffffff")
         fig.suptitle("MOPSO Convergence Rate Analysis (Fix 6)",
-                     color="#ff6b9d", fontsize=13, fontweight="bold")
+                     color="#111111", fontsize=13, fontweight="bold")
         hv_mono = np.maximum.accumulate(history)
 
         # Left: Cumulative HV
         ax1 = axes[0]
-        ax1.set_facecolor("#160d1a")
+        ax1.set_facecolor("#f8f9fa")
         iters = list(range(1, len(hv_mono)+1))
-        ax1.plot(iters, hv_mono, color="#ff6b9d", lw=2.5, zorder=3, label="Cumul. HV")
-        ax1.fill_between(iters, 0, hv_mono, alpha=0.12, color="#ff6b9d")
-        ax1.set_xlabel("Iteration", color="#a0a0cc", fontsize=9)
-        ax1.set_ylabel("Hypervolume", color="#a0a0cc", fontsize=9)
-        ax1.set_title("Cumulative HV Growth", color="#e0eaff", fontsize=11)
-        ax1.grid(True, alpha=0.25)
+        ax1.plot(iters, hv_mono, color="#555555", lw=2.5, zorder=3, label="Cumul. HV", linestyle="-")
+        ax1.fill_between(iters, 0, hv_mono, alpha=0.12, color="#555555")
+        ax1.set_xlabel("Iteration", color="#333333", fontsize=9)
+        ax1.set_ylabel("Hypervolume", color="#333333", fontsize=9)
+        ax1.set_title("Cumulative HV Growth", color="#111111", fontsize=11)
+        ax1.grid(True, alpha=0.5)
         ax1.legend(fontsize=8)
 
         # Right: HV GAIN per 50-iter window
         ax2 = axes[1]
-        ax2.set_facecolor("#160d1a")
+        ax2.set_facecolor("#f8f9fa")
         window = 50
         gains = []
         labels = []
@@ -1869,24 +1909,24 @@ def plot_mopso_convergence_rate(history: list, out_path: str):
             gain = hv_mono[i + window - 1] - hv_mono[i]
             gains.append(max(gain, 0))
             labels.append(f"{i+1}–{i+window}")
-        colors = ["#ff6b9d" if g > np.mean(gains) * 0.1 else "#553355" for g in gains]
-        bars = ax2.bar(range(len(gains)), gains, color=colors, alpha=0.85, edgecolor="none")
+        colors = ["#777777" if g > np.mean(gains) * 0.1 else "#333333" for g in gains]
+        bars = ax2.bar(range(len(gains)), gains, color=colors, alpha=0.85, edgecolor="black")
         ax2.set_xticks(range(len(labels)))
-        ax2.set_xticklabels(labels, rotation=45, ha="right", fontsize=7, color="#8090a0")
-        ax2.set_ylabel("HV Gain per 50 Iters", color="#a0a0cc", fontsize=9)
-        ax2.set_title("HV Improvement Rate — Convergence Evidence", color="#e0eaff", fontsize=11)
-        ax2.grid(True, axis="y", alpha=0.25)
+        ax2.set_xticklabels(labels, rotation=45, ha="right", fontsize=7, color="#111111")
+        ax2.set_ylabel("HV Gain per 50 Iters", color="#333333", fontsize=9)
+        ax2.set_title("HV Improvement Rate — Convergence Evidence", color="#111111", fontsize=11)
+        ax2.grid(True, axis="y", alpha=0.5)
         # Annotate the plateau region
         if len(gains) > 4:
             last3 = gains[-3:]
             avg_last = np.mean(last3)
-            ax2.axhline(avg_last, color="#ffff00", linestyle="--", alpha=0.6, lw=1.2,
+            ax2.axhline(avg_last, color="#000000", linestyle="--", alpha=0.6, lw=1.2,
                         label=f"Final avg gain: {avg_last:.4f}")
             ax2.legend(fontsize=8)
         # Verdict
         verdict = ("✓ CONVERGED" if len(gains) > 2 and max(gains[-2:]) < 0.005
                    else "~NEAR PLATEAU")
-        ax2.set_xlabel(f"50-iter Window | Verdict: {verdict}", color="#a0a0cc", fontsize=9)
+        ax2.set_xlabel(f"50-iter Window | Verdict: {verdict}", color="#333333", fontsize=9)
 
         plt.tight_layout()
         fig.savefig(out_path, bbox_inches="tight", dpi=130)
@@ -1906,11 +1946,12 @@ def run_visualization_layer(
     plot_pareto_comparison(
         nsga2["objectives"], mopso["objectives"], cfg["outputs"]["pareto_png"])
     plot_queue_distribution(
-        nsga2["objectives"], mopso["objectives"], cfg["outputs"]["queue_dist_png"])
+        nsga2["objectives"], mopso["objectives"], cfg["outputs"]["queue_dist_png"],
+        nsga2_raw_wq=nsga2.get("raw_wq_min"),
+        mopso_raw_wq=mopso.get("raw_wq_min"))
 
-    scenarios = np.random.randn(100, 10)  # dummy for profit dist
     plot_profit_uncertainty(
-        nsga2["objectives"], mopso["objectives"], scenarios, cfg["outputs"]["profit_dist_png"])
+        nsga2["objectives"], mopso["objectives"], cfg["outputs"]["profit_dist_png"])
     plot_scalability(scalability_data, cfg["outputs"]["scalability_png"])
 
     # Encode PNGs for report
