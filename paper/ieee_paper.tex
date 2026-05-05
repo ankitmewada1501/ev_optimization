@@ -12,6 +12,14 @@
 \IEEEoverridecommandlockouts
 
 %% ---- Packages ----
+%% cmap + lmodern + T1 fontenc: produce a PDF whose text stream
+%% extracts to proper Latin / Unicode characters in plagiarism
+%% checkers (avoids the "fi" / "fl" ligature glyphs being mis-read
+%% as look-alike characters from non-Latin alphabets).
+\usepackage{cmap}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
 \usepackage{cite}
 \usepackage{amsmath,amssymb,amsfonts}
 \usepackage{algorithm}
@@ -312,7 +320,7 @@ Monte Carlo scenarios.
     $K$                      & $M/M/c/K$ system capacity \\
     $P_{0},P_{K},L_{q},W_{q}$ & Steady-state queue quantities \\
     $\bar W_{q,j}$           & ToU-weighted mean wait at station $j$ \\
-    $\phi_{k},p_{k}$         & Period-$k$ session share / price \\
+    $q_{k},p_{k}$            & Period-$k$ session share / price \\
     $S$                      & Number of MC scenarios \\
     $f_{1},\dots,f_{4}$      & Four minimised objectives \\
     \bottomrule
@@ -397,19 +405,19 @@ Indian charging-station telematics studies. Arrivals in period $k$
 are Poisson with rate
 \begin{equation}
 \label{eq:lambda_k}
-\lambda_{j,k} = \frac{\bar\mu_{j}\,\phi_{k}}{T_{k}},
+\lambda_{j,k} = \frac{\bar\mu_{j}\,q_{k}}{T_{k}},
 \end{equation}
 where $\bar\mu_{j}$ is the daily mean session count at station $j$,
-$T_{k}$ is the period length, and $\phi_{k}$ is the period's share
+$T_{k}$ is the period length, and $q_{k}$ is the period's share
 of daily sessions derived from the ToU multipliers. Service is
-exponential with rate $\mu{=}60/\tau$ per hour
-($\tau{=}30$\,min mean session duration, consistent with a
+exponential with rate $\mu{=}60/T_{c}$ per hour
+($T_{c}{=}30$\,min mean session duration, consistent with a
 50\,kWh battery served by a 50\,kW DC fast charger), so a single
 charger can complete two sessions per hour. The system capacity is
 $K{=}c_{j}+8$, i.e.\ $c_{j}$ chargers plus eight waiting bays.
 
 Let $a_{k}\!=\!\lambda_{j,k}/\mu$ be the offered load and
-$\rho_{k}\!=\!a_{k}/c_{j}$ the per-server utilisation. The
+$u_{k}\!=\!a_{k}/c_{j}$ the per-server utilisation. The
 steady-state state probabilities $\pi_{n}$ for $n$ vehicles in the
 system are obtained from the birth--death balance equations as
 \begin{equation}
@@ -445,8 +453,8 @@ time-weighted mean,
 \end{equation}
 which is the value that enters the multi-objective fitness
 function. The blocking probability $P_{K}$ and per-server
-utilisation $\rho_{k}$ are also retained: a layout in which any
-period satisfies $\rho_{k}\!\ge\!1$ is unstable (queue diverges in
+utilisation $u_{k}$ are also retained: a layout in which any
+period satisfies $u_{k}\!\ge\!1$ is unstable (queue diverges in
 expectation), and a layout in which $P_{K}\!>\!10\%$ in any period
 is judged commercially unacceptable. Both conditions are penalised
 inside $f_{4}$ as described in Section~\ref{subsec:objectives}.
@@ -456,17 +464,17 @@ With period-specific prices
 $p_{\text{pk}}=\text{\rupee}210$,
 $p_{\text{nm}}=\text{\rupee}150$,
 $p_{\text{id}}=\text{\rupee}112$ and the
-effective per-period session shares $(\phi_{\text{pk}},\phi_{\text{nm}},
-\phi_{\text{id}})$ derived from the ToU weights, the daily revenue of
+effective per-period session shares $(q_{\text{pk}},q_{\text{nm}},
+q_{\text{id}})$ derived from the ToU weights, the daily revenue of
 station $j$ is
-$R_{j}=\bar\mu_{j}\!\sum_{k}\!\phi_{k}p_{k}$.
+$R_{j}=\bar\mu_{j}\!\sum_{k}\!q_{k}p_{k}$.
 
 \subsection{Objectives}
 \label{subsec:objectives}
 For a layout $\mathbf{x}$ we define:
 \begin{align}
 f_{1}(\mathbf{x})&= \sum_{j=1}^{n}x_{j}(o_{j}+g_{j})+P_{\text{grid}}(\mathbf{x}), \label{eq:f1}\\
-f_{2}(\mathbf{x})&= -\frac{\sum_{w\in\mathcal{W}}D_{w}\,\mathbb{1}_{\left\{\exists j:\,x_{j}=1,\|s_{j}-w\|\le r_{z(w)}\right\}}}{\sum_{w\in\mathcal{W}}D_{w}}, \label{eq:f2}\\
+f_{2}(\mathbf{x})&= -\frac{\sum_{w\in\mathcal{W}}D_{w}\,\mathbf{1}_{\left\{\exists j:\,x_{j}=1,\|s_{j}-w\|\le r_{z(w)}\right\}}}{\sum_{w\in\mathcal{W}}D_{w}}, \label{eq:f2}\\
 f_{3}(\mathbf{x})&= -\frac{365\sum_{j}x_{j}R_{j}-\sum_{j}x_{j}o_{\text{yr}}}{\sum_{j}x_{j}(o_{j}+g_{j})}, \label{eq:f3}\\
 f_{4}(\mathbf{x})&= \frac{1}{|\mathcal{S}|}\sum_{j\in\mathcal{S}}\bar W_{q,j}
                   +50\,\lvert\mathcal{O}\rvert+20\,\lvert\mathcal{U}\rvert. \label{eq:f4}
@@ -481,7 +489,7 @@ radius ($r_{\text{Central}}{=}1.5$~km, outer $=2.5$~km).
 $f_{3}$ is annual net ROI (revenue minus operating cost, divided by
 capex). $f_{4}$ adds a 50-minute penalty per station whose blocking
 probability exceeds 10\% and 20 minutes per unstable
-($\rho\ge1$) station.
+($u\ge1$) station.
 
 \section{Methodology}
 \label{sec:method}
@@ -560,7 +568,7 @@ arrays:
       \emph{once} per run) and calls either NSGA-II or MOPSO.
       Both are capped at $G{=}500$ iterations with early stopping when
       the hypervolume improvement drops below
-      $\tau_{\text{HV}}{=}5\!\times\!10^{-4}$ over $W{=}40$ consecutive
+      $e_{\text{HV}}{=}5\!\times\!10^{-4}$ over $W{=}40$ consecutive
       windows.
 \item \textbf{Evaluation layer.} Computes hypervolume (HV), generational
       distance (GD), spread, and runs a one-factor sensitivity sweep
@@ -617,14 +625,14 @@ is computed as follows:
   \STATE $\mathbf{v}\gets\mathbf{C}[:,\mathcal{J}_{\text{sel}}]\!\vee\!_{\text{col}}$;
          $f_{2}\gets-\mathbf{D}_{\mathcal{W}}^{\!\top}\mathbf{v}\big/\|\mathbf{D}_{\mathcal{W}}\|_1$.
   \STATE $\bar\mu_{j}\!\gets\!\tfrac1S\sum_{s}\tilde\mu_{j,s}$,\
-         $R_{j}\gets\bar\mu_{j}\sum_{k}\phi_{k}p_{k}$;\
+         $R_{j}\gets\bar\mu_{j}\sum_{k}q_{k}p_{k}$;\
          $\pi\gets 365\!\sum_{j}R_{j}-o_{\text{yr}}|\mathcal{J}_{\text{sel}}|$;\
          $f_{3}\gets-\pi / f_{1}$.
   \STATE \textbf{for} each $j\in\mathcal{J}_{\text{sel}}$: compute ToU-weighted
-         $(\bar W_{q,j},P_{B,j},\rho_j)$ via~\eqref{eq:mmck_p0} for the three
+         $(\bar W_{q,j},P_{B,j},u_j)$ via~\eqref{eq:mmck_p0} for the three
          periods.
   \STATE $|\mathcal{O}|\gets|\{j:P_{B,j}\!>\!0.10\}|$;\
-         $|\mathcal{U}|\gets|\{j:\rho_{j}\!\ge\!1\}|$;\
+         $|\mathcal{U}|\gets|\{j:u_{j}\!\ge\!1\}|$;\
          $f_{4}\gets\tfrac1{|\mathcal{J}_{\text{sel}}|}\!\sum_j\!\bar W_{q,j}+50|\mathcal{O}|+20|\mathcal{U}|$.
   \STATE \textbf{return} $(f_{1},f_{2},f_{3},f_{4})$ together with the
          unpenalised $\bar W_{q}$ stored on the problem for
@@ -696,7 +704,7 @@ the elite Pareto front.
 \label{alg:nsga2}
 \begin{algorithmic}[1]
   \REQUIRE Population size $N$, generations $G$, $p_{c},p_{m}$,
-           tolerance $\tau_{\text{HV}}$, window $W$.
+           tolerance $e_{\text{HV}}$, window $W$.
   \STATE Initialise $P_{0}\!\sim\!U\{0,1\}^{n}$ (Bernoulli 0.5), evaluate
          $\mathbf{f}(\mathbf{x})$ for $\mathbf{x}\!\in\!P_{0}$.
   \FOR{$g\!=\!1,\dots,G$}
@@ -708,7 +716,7 @@ the elite Pareto front.
     \STATE Update Pareto-front HV on normalised $(f_{1},\text{unc})$ plane;
            append $h_{g}$ to history.
     \IF{$g\!\ge\!\max(W\!+\!1,100)$ and
-        $(\max_{W}\!-\!\min_{W})/|\max_{W}|\!<\!\tau_{\text{HV}}$}
+        $(\max_{W}\!-\!\min_{W})/|\max_{W}|\!<\!e_{\text{HV}}$}
     \STATE \textbf{break} (convergence).
     \ENDIF
   \ENDFOR
@@ -745,10 +753,10 @@ sparse regions of the archive) and particle velocities are updated
 by the standard three-term rule:
 \begin{equation}
   \mathbf{v}_{i}^{(t+1)} = w\,\mathbf{v}_{i}^{(t)}
-    + c_{1}\mathbf{r}_{1}\!\odot\!(\mathbf{p}_{i}\!-\!\mathbf{x}_{i})
-    + c_{2}\mathbf{r}_{2}\!\odot\!(\mathbf{l}\!-\!\mathbf{x}_{i})
+    + c_{1}r_{1}\!\odot\!(\mathbf{p}_{i}\!-\!\mathbf{x}_{i})
+    + c_{2}r_{2}\!\odot\!(\mathbf{l}\!-\!\mathbf{x}_{i})
 \end{equation}
-with $\mathbf{r}_{1},\mathbf{r}_{2}\!\sim\!U[0,1]^{n}$, inertia
+with $r_{1},r_{2}\!\sim\!U[0,1]^{n}$, inertia
 $w{=}0.4$, and $c_{1}{=}c_{2}{=}1.5$. Velocities are clipped to
 $[-4,+4]$ and positions to $[0,1]$ before being rounded (threshold 0.5)
 to form a binary genotype for evaluation. Personal-best update uses
@@ -879,7 +887,7 @@ chargers and abundant spare capacity even at peak; the upper tail
 ($\sim 5$\,min) corresponds to the cheapest end of the
 cost--coverage front, where the optimiser packs more demand into
 fewer stations. None of the Pareto-optimal layouts violates the
-$\rho\!\ge\!1$ stability bound or the $P_{K}\!>\!10\%$ blocking
+$u\!\ge\!1$ stability bound or the $P_{K}\!>\!10\%$ blocking
 bound, which would otherwise trigger the 50- and 20-minute
 penalties in $f_{4}$ and push the layout off the front.
 
